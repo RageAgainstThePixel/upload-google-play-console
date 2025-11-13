@@ -29,7 +29,7 @@ jobs:
           hub-version: 3.12.0
           unity-version: 6000
           build-targets: Android
-          version-file: com.utilities.websockets/**/ProjectVersion.txt
+          version-file: ${{ github.workspace }}/com.utilities.websockets/Utilities.Websockets/ProjectSettings/ProjectVersion.txt
       - uses: RageAgainstThePixel/activate-unity-license@v2
         with:
           license: Personal
