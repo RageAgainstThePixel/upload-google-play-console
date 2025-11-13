@@ -1,0 +1,54 @@
+name: Build and Publish Unity App
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: ['**']
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{(github.event_name == 'pull_request' || github.event.action == 'synchronize')}}
+jobs:
+  build-and-publish:
+    if: github.event.pull_request.draft == false
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: RageAgainstThePixel/com.utilities.websockets
+          path: com.utilities.websockets
+      - uses: RageAgainstThePixel/unity-setup@v2
+        timeout-minutes: 30
+        with:
+          hub-version: 3.12.0
+          unity-version: 6000
+          build-targets: Android
+          version-file: com.utilities.websockets/**/ProjectVersion.txt
+      - uses: RageAgainstThePixel/activate-unity-license@v2
+        with:
+          license: Personal
+          username: ${{ secrets.UNITY_USERNAME }}
+          password: ${{ secrets.UNITY_PASSWORD }}
+      - name: Validate
+        uses: RageAgainstThePixel/unity-action@v3
+        with:
+          log-name: Validate
+          build-target: Android
+          args: -quit -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.ValidateProject -importTMProEssentialsAsset
+      - name: Build
+        uses: RageAgainstThePixel/unity-action@v3
+        timeout-minutes: 30
+        with:
+          log-name: Build
+          build-target: Android
+          args: -quit -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -appBundle -versionCode ${{ github.run_number }}${{ github.run_attempt }} -keyaliasPass ${{ secrets.APK_SIGNING_PASSWORD }} -keystorePass ${{ secrets.APK_SIGNING_PASSWORD }}
+      - uses: google-github-actions/auth@v3
+        with:
+          project_id: unity-build-tests
+          workload_identity_provider: projects/1076244883472/locations/global/workloadIdentityPools/github
+      - name: Upload Build Artifact
+        uses: ./ # RageAgainstThePixel/upload-google-play-console
+        with:
+          release-directory: com.utilities.websockets/Builds/Android
