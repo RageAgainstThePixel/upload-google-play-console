@@ -75,6 +75,11 @@ const main = async () => {
         }
 
         const insertResponse = await androidPublisherClient.edits.insert({ packageName: packageName });
+
+        if (!insertResponse.ok) {
+            throw new Error(`Failed to create edit: ${insertResponse.statusText}`);
+        }
+
         const editId = insertResponse.data.id;
 
         if (apkInfo) {
@@ -89,7 +94,7 @@ const main = async () => {
 
             const uploadApkResponse = await androidPublisherClient.edits.apks.upload(uploadApkRequest);
 
-            if (uploadApkResponse.status !== 200) {
+            if (!uploadApkResponse.ok) {
                 throw new Error(`Failed to upload APK: ${uploadApkResponse.statusText}`);
             }
 
@@ -126,7 +131,7 @@ const main = async () => {
 
                 const expansionFileResponse = await androidPublisherClient.edits.expansionfiles.upload(expansionFileRequest);
 
-                if (expansionFileResponse.status !== 200) {
+                if (!expansionFileResponse.ok) {
                     core.error(`Failed to upload expansion file (${expansionFileType}): ${expansionFileResponse.statusText}`);
                 }
             }
@@ -143,7 +148,7 @@ const main = async () => {
             };
             const uploadBundleResponse = await androidPublisherClient.edits.bundles.upload(uploadBundleRequest);
 
-            if (uploadBundleResponse.status !== 200) {
+            if (!uploadBundleResponse.ok) {
                 throw new Error(`Failed to upload AAB: ${uploadBundleResponse.statusText}`);
             }
 
@@ -172,12 +177,11 @@ const main = async () => {
             };
             const uploadDeobfuscationFileResponse = await androidPublisherClient.edits.deobfuscationfiles.upload(uploadDeobfuscationFileRequest);
 
-            if (uploadDeobfuscationFileResponse.status !== 200) {
+            if (!uploadDeobfuscationFileResponse.ok) {
                 core.error(`Failed to upload deobfuscation file: ${uploadDeobfuscationFileResponse.statusText}`);
             }
         }
 
-        // get track info and update with new version code
         const getTrackRequest: google.androidpublisher_v3.Params$Resource$Edits$Tracks$Get = {
             packageName: packageName,
             editId: editId,
@@ -186,7 +190,7 @@ const main = async () => {
 
         const getTrackResponse = await androidPublisherClient.edits.tracks.get(getTrackRequest);
 
-        if (getTrackResponse.status !== 200) {
+        if (!getTrackResponse.ok) {
             throw new Error(`Failed to get track info for track ${track}: ${getTrackResponse.statusText}`);
         }
 
@@ -210,17 +214,16 @@ const main = async () => {
 
         const trackUpdateResponse = await androidPublisherClient.edits.tracks.update(trackUpdateRequest);
 
-        if (trackUpdateResponse.status !== 200) {
+        if (!trackUpdateResponse.ok) {
             throw new Error(`Failed to update track ${track}: ${trackUpdateResponse.statusText}`);
         }
 
-        // validate and commit the edit
         const validateResponse = await androidPublisherClient.edits.validate({
             packageName: packageName,
             editId: editId,
         });
 
-        if (validateResponse.status !== 200) {
+        if (!validateResponse.ok) {
             throw new Error(`Failed to validate edit: ${validateResponse.statusText}`);
         }
 
@@ -229,7 +232,7 @@ const main = async () => {
             editId: editId
         });
 
-        if (commitResponse.status !== 200) {
+        if (!commitResponse.ok) {
             throw new Error(`Failed to commit edit: ${commitResponse.statusText}`);
         }
     } catch (error) {
