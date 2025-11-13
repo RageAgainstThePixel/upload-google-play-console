@@ -2,8 +2,10 @@ import * as google from 'googleapis';
 import * as core from '@actions/core';
 import * as glob from '@actions/glob';
 import * as io from '@actions/io';
-import { exec } from '@actions/exec';
 import * as fs from 'fs';
+import * as path from 'path';
+import { exec } from '@actions/exec';
+import * as tc from '@actions/tool-cache';
 
 const main = async () => {
     try {
@@ -340,8 +342,22 @@ async function getPackageInfoAab(filePath: string): Promise<PackageInfo> {
         throw new Error(`File does not exist at path: ${filePath}`);
     }
 
+    let bundletoolPath: string;
+
     try {
-        let bundletoolPath = await io.which('bundletool', true);
+        bundletoolPath = await io.which('bundletool', true);
+    } catch {
+        await setupBundleTool();
+        bundletoolPath = await io.which('bundletool', true);
+    }
+
+    if (!bundletoolPath) {
+        throw new Error('Failed to locate bundletool!');
+    } else {
+        core.info(`Using bundletool at path: ${bundletoolPath}`);
+    }
+
+    try {
         let output = '';
         const result = await exec(bundletoolPath, ['dump', 'manifest', '--bundle', filePath], {
             listeners: {
@@ -371,4 +387,73 @@ async function getPackageInfoAab(filePath: string): Promise<PackageInfo> {
     }
 
     throw new Error(`Package name not found in the manifest of the release asset: ${filePath}`);
+}
+
+async function setupBundleTool(): Promise<string> {
+    core.info('Setting up bundletool...');
+    const javaPath = await io.which('java', false);
+
+    if (!javaPath) {
+        throw new Error(`bundletool requires Java to be installed. Use the 'actions/setup-java' action to install Java before this action.`);
+    }
+
+    const manifest: tc.IToolRelease[] = await getManifest('google', 'bundletool');
+    const release = await tc.findFromManifest('latest', true, manifest, process.arch) || manifest[0];
+    const downloadPath = await tc.downloadTool(release.release_url);
+    // find the release jar file
+    // bundletool-all-<version>.jar
+    const globber = await glob.create(`${downloadPath}/bundletool-all-*.jar`);
+    const jarFiles = await globber.glob();
+
+    if (jarFiles.length !== 1) {
+        throw new Error(`Failed to locate bundletool jar file in downloaded release from ${release.release_url}`);
+    }
+
+    const bundletoolJarPath = jarFiles[0];
+
+    // create a shim script to run bundletool
+    const shimDir = `${process.env.RUNNER_TEMP}/.bundletool`;
+    await io.mkdirP(shimDir);
+    const shimPath = `${shimDir}/bundletool`;
+    const shimContent = `#!/bin/bash\n"${javaPath}" -jar "${bundletoolJarPath}" "$@"`;
+    fs.writeFileSync(shimPath, shimContent, { mode: 0o755 });
+    fs.chmodSync(shimPath, 0o755);
+
+    // copy the jar to the shim directory
+    fs.copyFileSync(bundletoolJarPath, `${shimDir}/${path.basename(bundletoolJarPath)}`);
+
+    // cache the tool
+    const toolPath = await tc.cacheDir(shimDir, 'bundletool', release.version, process.arch);
+    core.addPath(toolPath);
+    return toolPath;
+}
+
+async function getManifest(owner: string, repo: string): Promise<tc.IToolRelease[]> {
+    const manifest = await tc.getManifestFromRepo(owner, repo);
+
+    if (Array.isArray(manifest) &&
+        manifest.length &&
+        manifest.length > 0 &&
+        manifest.every(isIToolRelease)) {
+        return manifest;
+    }
+
+    throw new Error(`Failed to retrieve valid manifest for ${owner}/${repo}.`);
+}
+
+function isIToolRelease(obj: any): obj is tc.IToolRelease {
+    return (
+        typeof obj === 'object' &&
+        obj !== null &&
+        typeof obj.version === 'string' &&
+        typeof obj.stable === 'boolean' &&
+        Array.isArray(obj.files) &&
+        obj.files.every(
+            (file: any) =>
+                typeof file.filename === 'string' &&
+                typeof file.platform === 'string' &&
+                typeof file.arch === 'string' &&
+                typeof file.download_url === 'string'
+        )
+    );
 }
