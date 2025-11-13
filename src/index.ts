@@ -35,7 +35,18 @@ const main = async () => {
         core.info(`Track: ${track}`);
         core.info(`Release status: ${releaseStatus}`);
 
-        const globber = await glob.create(`${releaseDirectory}/**/*.{aab,apk,obb,zip}`);
+        const files = fs.readdirSync(releaseDirectory);
+        core.info(`Files in release directory:\n${files.join('\n  > ')}`);
+
+        if (files.length === 0) {
+            throw new Error(`Release directory is empty: ${releaseDirectory}`);
+        }
+
+        const basePattern = `${releaseDirectory}/**/`;
+        const patterns = ['*.aab', '*.apk', '*.obb', '*.zip'];
+        const globPattern = patterns.map(pattern => `${basePattern}${pattern}`).join('\n');
+        core.info(`Using glob pattern to find release assets:\n${globPattern}`);
+        const globber = await glob.create(globPattern);
         const releaseAssets = await globber.glob();
 
         if (releaseAssets.length === 0) {
