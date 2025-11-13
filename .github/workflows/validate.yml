@@ -21,20 +21,29 @@ jobs:
       - uses: actions/checkout@v5
         with:
           repository: RageAgainstThePixel/com.utilities.websockets
-          path: com.utilities.websockets
           ref: dev/test-android-publishing
-      - uses: RageAgainstThePixel/unity-setup@v2
+          path: ${{ github.workspace }}/unity-project/
+      - uses: RageAgainstThePixel/unity-setup@development
+        id: unity-setup
         timeout-minutes: 30
         with:
           hub-version: 3.12.0
           unity-version: 6000
           build-targets: Android
-          version-file: ${{ github.workspace }}/com.utilities.websockets/Utilities.Websockets/ProjectSettings/ProjectVersion.txt
+          version-file: ${{ github.workspace }}/unity-project/Utilities.Websockets/ProjectSettings/ProjectVersion.txt
       - uses: RageAgainstThePixel/activate-unity-license@v2
         with:
           license: Personal
           username: ${{ secrets.UNITY_USERNAME }}
           password: ${{ secrets.UNITY_PASSWORD }}
+      - name: Unity Library Cache Restore
+        uses: actions/cache/restore@v4
+        id: unity-library-cache-restore
+        with:
+          path: ${{ steps.unity-setup.outputs.unity-project-path }}/Library
+          key: ${{ runner.os }}-unity-library-cache-${{ hashFiles(format('{0}/Library/**', steps.unity-setup.outputs.unity-project-path)) }}
+          restore-keys: |
+            ${{ runner.os }}-unity-library-cache-
       - name: Validate
         uses: RageAgainstThePixel/unity-action@v3
         with:
@@ -48,13 +57,18 @@ jobs:
           log-name: Build
           build-target: Android
           args: -quit -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -appBundle -versionCode ${{ github.run_number }}${{ github.run_attempt }} -keyaliasPass ${{ secrets.APK_SIGNING_PASSWORD }} -keystorePass ${{ secrets.APK_SIGNING_PASSWORD }}
+      - name: Unity Library Cache Save
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.unity-setup.outputs.unity-project-path }}/Library
+          key: ${{ runner.os }}-unity-library-cache-${{ hashFiles(format('{0}/Library/**', steps.unity-setup.outputs.unity-project-path)) }}
       - uses: google-github-actions/auth@v3
         id: auth
         with:
           project_id: unity-build-tests
-          workload_identity_provider: projects/1076244883472/locations/global/workloadIdentityPools/github/providers/my-repo
+          workload_identity_provider: projects/1076244883472/locations/global/workloadIdentityPools/github/providers/upload-google-play-console
       - name: Upload Build Artifact
         uses: ./ # RageAgainstThePixel/upload-google-play-console
         with:
           service-account-credentials-path: ${{ steps.auth.outputs.credentials_file_path }}
-          release-directory: com.utilities.websockets/Builds/Android
+          release-directory: ${{ steps.unity-setup.outputs.unity-project-path }}/Builds/Android
