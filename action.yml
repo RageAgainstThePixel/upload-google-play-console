@@ -1,8 +1,22 @@
-name: github-action-template
-description: 'A GitHub Actions template repository for TypeScript based Actions'
-# inputs:
-# outputs:
+name: upload-google-play-console
+description: A Github action to upload to google play console.
+inputs:
+  service-account-credentials-json:
+    description: 'The service account credentials JSON file path. Required if GOOGLE_APPLICATION_CREDENTIALS is not set in the environment.'
+    required: false
+  release-directory:
+    description: 'The directory containing the APKs/AABs to upload.'
+    required: true
+  release-name:
+    description: 'The name of the release.'
+    required: false
+  release-notes:
+    description: 'The release notes for the upload.'
+    required: false
+  track:
+    description: 'The track to upload the app to (e.g., internal, alpha, beta, production).'
+    required: false
+    default: 'internal'
 runs:
-  using: 'node20'
-  main: 'dist/index.js'
-  #post: 'dist/index.js'
+  using: node20
+  main: dist/index.js
