@@ -52,7 +52,7 @@ jobs:
         id: auth
         with:
           project_id: unity-build-tests
-          workload_identity_provider: projects/1076244883472/locations/global/workloadIdentityPools/github
+          workload_identity_provider: projects/1076244883472/locations/global/workloadIdentityPools/github/providers/my-repo
       - name: Upload Build Artifact
         uses: ./ # RageAgainstThePixel/upload-google-play-console
         with:
