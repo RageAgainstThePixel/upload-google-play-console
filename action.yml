@@ -1,22 +1,23 @@
 name: upload-google-play-console
 description: A Github action to upload to google play console.
 inputs:
-  service-account-credentials-json:
-    description: 'The service account credentials JSON file path. Required if GOOGLE_APPLICATION_CREDENTIALS is not set in the environment.'
+  service-account-credentials-path:
+    description: 'The service account credentials file path. Required if GOOGLE_APPLICATION_CREDENTIALS is not set in the environment.'
     required: false
   release-directory:
     description: 'The directory containing the APKs/AABs to upload.'
     required: true
   release-name:
-    description: 'The name of the release.'
-    required: false
-  release-notes:
-    description: 'The release notes for the upload.'
+    description: 'The name of the release. Defaults to reading manifest data (version code and version string).'
     required: false
   track:
     description: 'The track to upload the app to (e.g., internal, alpha, beta, production).'
     required: false
     default: 'internal'
+  release-status:
+    description: 'The status of the release (e.g., draft, inProgress, completed, halted).'
+    required: false
+    default: 'draft'
 runs:
   using: node20
   main: dist/index.js

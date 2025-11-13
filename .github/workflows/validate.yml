@@ -13,6 +13,9 @@ jobs:
   build-and-publish:
     if: github.event.pull_request.draft == false
     runs-on: macos-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v5
       - uses: actions/checkout@v5
@@ -45,10 +48,12 @@ jobs:
           build-target: Android
           args: -quit -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -appBundle -versionCode ${{ github.run_number }}${{ github.run_attempt }} -keyaliasPass ${{ secrets.APK_SIGNING_PASSWORD }} -keystorePass ${{ secrets.APK_SIGNING_PASSWORD }}
       - uses: google-github-actions/auth@v3
+        id: auth
         with:
           project_id: unity-build-tests
           workload_identity_provider: projects/1076244883472/locations/global/workloadIdentityPools/github
       - name: Upload Build Artifact
         uses: ./ # RageAgainstThePixel/upload-google-play-console
         with:
+          service-account-credentials-path: ${{ steps.auth.outputs.credentials_file_path }}
           release-directory: com.utilities.websockets/Builds/Android
