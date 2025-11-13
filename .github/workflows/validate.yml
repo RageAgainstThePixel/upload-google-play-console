@@ -22,6 +22,7 @@ jobs:
         with:
           repository: RageAgainstThePixel/com.utilities.websockets
           path: com.utilities.websockets
+          ref: dev/test-android-publishing
       - uses: RageAgainstThePixel/unity-setup@v2
         timeout-minutes: 30
         with:

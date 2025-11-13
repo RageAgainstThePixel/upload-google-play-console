@@ -12,7 +12,7 @@ A Github action to upload to google play console.
 1. Enable the [Google Play Android Developer API](https://console.cloud.google.com/apis/library/androidpublisher.googleapis.com) for your project in the Google Cloud Console.
 
 > [!TIP]
-> This action is setup to use the `GOOGLE_APPLICATION_CREDENTIALS` Environment variable which can be easily set using the [`google-github-actions/auth`](https://github.com/google-github-actions/auth#usage) action. Please refer to their documentation for more details on setting up authentication using Workload Identity Federation or Service Account keys.
+> This action is setup to use the `GOOGLE_APPLICATION_CREDENTIALS` Environment variable which can be easily set using the [`google-github-actions/auth`](https://github.com/google-github-actions/auth#preferred-direct-workload-identity-federation) action. Please refer to their documentation for more details on setting up authentication using Workload Identity Federation or Service Account keys.
 
 2. Add `id-token: write` permission to your workflow so that the `google-github-actions/auth` action can mint identity tokens.
 
