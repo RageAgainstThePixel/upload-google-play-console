@@ -36,13 +36,14 @@ const main = async () => {
         core.info(`Release status: ${releaseStatus}`);
 
         const files = fs.readdirSync(releaseDirectory);
-        core.info(`Files in release directory:\n${files.join('\n  > ')}`);
+        core.info(`Files in release directory:`);
+        files.forEach(element => core.info(`  > ${element}`));
 
         if (files.length === 0) {
             throw new Error(`Release directory is empty: ${releaseDirectory}`);
         }
 
-        const basePattern = `${releaseDirectory}/**/`;
+        const basePattern = `${releaseDirectory}/`;
         const patterns = ['*.aab', '*.apk', '*.obb', '*.zip'];
         const globPattern = patterns.map(pattern => `${basePattern}${pattern}`).join('\n');
         core.info(`Using glob pattern to find release assets:\n${globPattern}`);
@@ -53,7 +54,8 @@ const main = async () => {
             throw new Error(`No release assets found in directory: ${releaseDirectory}`);
         }
 
-        core.info(`Found ${releaseAssets.length} release assets to upload:\n${releaseAssets.join('\n  > ')}`);
+        core.info(`Found ${releaseAssets.length} release assets to upload:`);
+        releaseAssets.forEach(asset => core.info(`  > ${asset}`));
 
         let apkInfo: PackageInfo | null = null;
         let aabInfo: PackageInfo | null = null;
