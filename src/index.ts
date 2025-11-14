@@ -440,8 +440,8 @@ async function setupBundleTool(): Promise<string> {
 }
 
 async function getManifest(owner: string, repo: string): Promise<tc.IToolRelease[]> {
-    core.info(`Retrieving manifest for ${owner}/${repo}...`);
-    const manifest = await tc.getManifestFromRepo(owner, repo);
+    core.info(`Retrieving manifest for ${owner}/${repo}/master...`);
+    const manifest = await tc.getManifestFromRepo(owner, repo, undefined, 'master');
 
     if (Array.isArray(manifest) &&
         manifest.length &&
