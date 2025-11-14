@@ -17,7 +17,7 @@ inputs:
   release-status:
     description: 'The status of the release (e.g., draft, inProgress, completed, halted).'
     required: false
-    default: 'draft'
+    default: 'completed'
   github-token:
     description: 'GitHub token for authentication. Use either `secrets.GITHUB_TOKEN`, `github.token` or a personal access token.'
     required: true

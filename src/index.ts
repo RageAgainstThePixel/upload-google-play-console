@@ -309,11 +309,11 @@ class PackageInfo {
     }
 
     /**
-     * Get release name in format: versionName (versionCode)
+     * Get release name in format: versionCode (versionName)
      * @returns release name
      */
     public getReleaseName(): string {
-        return `${this.versionName} (${this.versionCode})`;
+        return `${this.versionCode} (${this.versionName})`;
     }
 }
 
