@@ -38,7 +38,7 @@ const main = async () => {
         const releaseDirectory = core.getInput('release-directory', { required: true });
         const releaseName = core.getInput('release-name');
         const track = core.getInput('track') || 'internal';
-        const releaseStatus = core.getInput('release-status') || 'draft';
+        const releaseStatus = core.getInput('release-status') || 'completed';
 
         core.info(`Uploading release from directory: ${releaseDirectory}`);
 

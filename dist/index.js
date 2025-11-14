@@ -59467,7 +59467,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         const releaseDirectory = core.getInput('release-directory', { required: true });
         const releaseName = core.getInput('release-name');
         const track = core.getInput('track') || 'internal';
-        const releaseStatus = core.getInput('release-status') || 'draft';
+        const releaseStatus = core.getInput('release-status') || 'completed';
         core.info(`Uploading release from directory: ${releaseDirectory}`);
         if (releaseName) {
             core.info(`Release name: ${releaseName}`);
@@ -59692,7 +59692,7 @@ class PackageInfo {
         this.filePath = filePath;
     }
     getReleaseName() {
-        return `${this.versionName} (${this.versionCode})`;
+        return `${this.versionCode} (${this.versionName})`;
     }
 }
 function getPackageInfoApk(filePath) {

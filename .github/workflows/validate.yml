@@ -74,6 +74,6 @@ jobs:
       - name: Upload Build Artifact
         uses: ./ # RageAgainstThePixel/upload-google-play-console
         with:
-          service-account-credentials-path: ${{ steps.auth.outputs.credentials_file_path }}
+          release-status: draft
           release-directory: ${{ steps.unity-setup.outputs.unity-project-path }}/Builds/Android
           github-token: ${{ secrets.GITHUB_TOKEN }}
