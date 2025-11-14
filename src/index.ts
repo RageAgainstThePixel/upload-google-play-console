@@ -398,8 +398,13 @@ async function setupBundleTool(): Promise<string> {
     }
 
     const manifest: tc.IToolRelease[] = await getManifest('google', 'bundletool');
-    const release = await tc.findFromManifest('latest', true, manifest, process.arch) || manifest[0];
-    const downloadPath = await tc.downloadTool(release.release_url);
+    const release = manifest[0];
+    const jarFile = release.files.find(f => f.filename.endsWith('.jar')); // bundletool-all-<version>.jar which means any architecture
+    if (!jarFile) {
+        throw new Error(`Failed to find bundletool jar file in manifest release from ${release.release_url}`);
+    }
+    core.info(`installing bundletool version: ${release.version} from ${jarFile.download_url}`);
+    const downloadPath = await tc.downloadTool(jarFile.download_url);
     // find the release jar file
     // bundletool-all-<version>.jar
     const globber = await glob.create(`${downloadPath}/bundletool-all-*.jar`);
@@ -410,6 +415,7 @@ async function setupBundleTool(): Promise<string> {
     }
 
     const bundletoolJarPath = jarFiles[0];
+    core.info(`downloaded: ${bundletoolJarPath}`);
 
     // create a shim script to run bundletool
     const shimDir = `${process.env.RUNNER_TEMP}/.bundletool`;
@@ -422,8 +428,11 @@ async function setupBundleTool(): Promise<string> {
     // copy the jar to the shim directory
     fs.copyFileSync(bundletoolJarPath, `${shimDir}/${path.basename(bundletoolJarPath)}`);
 
+    core.info(`Created bundletool shim at: ${shimPath}`);
+
     // cache the tool
     const toolPath = await tc.cacheDir(shimDir, 'bundletool', release.version, process.arch);
+    core.info(`Cached bundletool v${release.version}-${process.arch}: ${toolPath}`);
     core.addPath(toolPath);
     return toolPath;
 }
