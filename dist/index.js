@@ -59387,6 +59387,458 @@ function wrappy (fn, cb) {
 
 /***/ }),
 
+/***/ 6144:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const google = __importStar(__nccwpck_require__(8159));
+const core = __importStar(__nccwpck_require__(2186));
+const glob = __importStar(__nccwpck_require__(8090));
+const io = __importStar(__nccwpck_require__(7436));
+const fs = __importStar(__nccwpck_require__(7147));
+const path = __importStar(__nccwpck_require__(1017));
+const exec_1 = __nccwpck_require__(1514);
+const tc = __importStar(__nccwpck_require__(7784));
+const github = __importStar(__nccwpck_require__(5438));
+let octokit;
+const main = () => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const githubToken = core.getInput('github-token', { required: false }) || process.env.GITHUB_TOKEN;
+        if (!githubToken) {
+            throw new Error('A GitHub token is required. Please provide it via the "github-token" input or set the GITHUB_TOKEN environment variable.');
+        }
+        octokit = github.getOctokit(githubToken);
+        const credentialsPath = core.getInput('service-account-credentials-path') || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        if (!credentialsPath) {
+            throw new Error('Missing service account credentials. Please provide the path to the service account JSON file or set the GOOGLE_APPLICATION_CREDENTIALS environment variable.');
+        }
+        const auth = new google.auth.GoogleAuth({
+            keyFile: credentialsPath,
+            scopes: ['https://www.googleapis.com/auth/androidpublisher'],
+        });
+        const androidPublisherClient = new google.androidpublisher_v3.Androidpublisher({ auth: auth });
+        const releaseDirectory = core.getInput('release-directory', { required: true });
+        const releaseName = core.getInput('release-name');
+        const track = core.getInput('track') || 'internal';
+        const releaseStatus = core.getInput('release-status') || 'draft';
+        core.info(`Uploading release from directory: ${releaseDirectory}`);
+        if (releaseName) {
+            core.info(`Release name: ${releaseName}`);
+        }
+        core.info(`Track: ${track}`);
+        core.info(`Release status: ${releaseStatus}`);
+        const items = fs.readdirSync(releaseDirectory);
+        if (core.isDebug()) {
+            core.info(`Items in release directory:`);
+            items.forEach(item => {
+                if (fs.statSync(path.join(releaseDirectory, item)).isFile()) {
+                    core.info(`  > ${item}`);
+                }
+            });
+        }
+        if (items.length === 0) {
+            throw new Error(`Release directory is empty: ${releaseDirectory}`);
+        }
+        const basePattern = `${releaseDirectory}/`;
+        const patterns = ['*.aab', '*.apk', '*.obb', '*.zip'];
+        const globPattern = patterns.map(pattern => `${basePattern}${pattern}`).join('\n');
+        core.debug(`Using glob pattern to find release assets:\n${globPattern}`);
+        const globber = yield glob.create(globPattern);
+        const releaseAssets = yield globber.glob();
+        if (releaseAssets.length === 0) {
+            throw new Error(`No release assets found in directory: ${releaseDirectory}`);
+        }
+        core.info(`Found ${releaseAssets.length} release assets to upload:`);
+        releaseAssets.forEach(asset => core.info(`  > ${path.basename(asset)}`));
+        let apkInfo = null;
+        let aabInfo = null;
+        const expansionFiles = [];
+        const symbolFiles = [];
+        let versionCode = null;
+        for (const assetPath of releaseAssets) {
+            if (assetPath.toLowerCase().endsWith('.apk')) {
+                apkInfo = yield getPackageInfoApk(assetPath);
+            }
+            else if (assetPath.toLowerCase().endsWith('.aab')) {
+                aabInfo = yield getPackageInfoAab(assetPath);
+            }
+            else if (assetPath.toLowerCase().endsWith('.obb')) {
+                expansionFiles.push(assetPath);
+            }
+            else if (assetPath.toLowerCase().endsWith('.zip')) {
+                symbolFiles.push(assetPath);
+            }
+        }
+        if (apkInfo && aabInfo) {
+            throw new Error('Cannot upload both APK and AAB files in the same release. Please choose one format.');
+        }
+        const packageName = apkInfo ? apkInfo.packageName : aabInfo ? aabInfo.packageName : null;
+        if (!packageName) {
+            throw new Error('Failed to determine package name from release assets.');
+        }
+        core.info(`Inserting edit for package: ${packageName}...`);
+        const insertResponse = yield androidPublisherClient.edits.insert({
+            auth: auth,
+            packageName: packageName
+        });
+        if (!insertResponse.ok) {
+            throw new Error(`Failed to create edit: ${insertResponse.statusText}`);
+        }
+        const editId = insertResponse.data.id;
+        core.info(`Created edit: ${editId} for ${packageName}`);
+        if (apkInfo) {
+            core.info(`Uploading APK: ${apkInfo.filePath}...`);
+            const uploadApkResponse = yield androidPublisherClient.edits.apks.upload({
+                auth: auth,
+                editId: editId,
+                packageName: apkInfo.packageName,
+                media: {
+                    mimeType: 'application/octet-stream',
+                    body: fs.createReadStream(apkInfo.filePath),
+                }
+            });
+            if (!uploadApkResponse.ok) {
+                throw new Error(`Failed to upload APK: ${uploadApkResponse.statusText}`);
+            }
+            if (!uploadApkResponse.data.versionCode) {
+                throw new Error(`Failed to retrieve version code from uploaded APK ${apkInfo.filePath}.`);
+            }
+            core.info(`Successfully uploaded APK with version code: ${uploadApkResponse.data.versionCode}`);
+            versionCode = uploadApkResponse.data.versionCode;
+            for (const obbPath of expansionFiles) {
+                const expansionFileType = obbPath.toLowerCase().includes('main')
+                    ? 'main'
+                    : obbPath.toLowerCase().includes('patch')
+                        ? 'patch'
+                        : null;
+                if (!expansionFileType) {
+                    core.error(`Skipping OBB expansion file as it is neither prefixed with main nor patch: ${obbPath}`);
+                    continue;
+                }
+                core.info(`Uploading expansion file: ${obbPath}...`);
+                const expansionFileResponse = yield androidPublisherClient.edits.expansionfiles.upload({
+                    auth: auth,
+                    editId: editId,
+                    packageName: packageName,
+                    apkVersionCode: uploadApkResponse.data.versionCode,
+                    expansionFileType: expansionFileType,
+                    media: {
+                        mimeType: 'application/octet-stream',
+                        body: fs.createReadStream(obbPath),
+                    }
+                });
+                if (!expansionFileResponse.ok) {
+                    core.error(`Failed to upload expansion file (${expansionFileType}): ${expansionFileResponse.statusText}`);
+                }
+            }
+        }
+        if (aabInfo) {
+            core.info(`Uploading AAB: ${aabInfo.filePath}...`);
+            const uploadBundleResponse = yield androidPublisherClient.edits.bundles.upload({
+                auth: auth,
+                editId: editId,
+                packageName: aabInfo.packageName,
+                media: {
+                    mimeType: 'application/octet-stream',
+                    body: fs.createReadStream(aabInfo.filePath),
+                }
+            });
+            if (!uploadBundleResponse.ok) {
+                throw new Error(`Failed to upload AAB: ${uploadBundleResponse.statusText}`);
+            }
+            if (!uploadBundleResponse.data.versionCode) {
+                throw new Error(`Failed to retrieve version code from uploaded AAB ${aabInfo.filePath}.`);
+            }
+            core.info(`Successfully uploaded AAB with version code: ${uploadBundleResponse.data.versionCode}`);
+            versionCode = uploadBundleResponse.data.versionCode;
+        }
+        if (!versionCode) {
+            throw new Error('Failed to determine version code from uploaded release asset.');
+        }
+        for (const symbolPath of symbolFiles) {
+            core.info(`Uploading deobfuscation file: ${symbolPath}...`);
+            const uploadDeobfuscationFileResponse = yield androidPublisherClient.edits.deobfuscationfiles.upload({
+                auth: auth,
+                editId: editId,
+                packageName: packageName,
+                apkVersionCode: versionCode,
+                deobfuscationFileType: symbolPath.toLowerCase().endsWith('.zip') ? 'nativeCode' : 'proguard',
+                media: {
+                    mimeType: 'application/octet-stream',
+                    body: fs.createReadStream(symbolPath),
+                }
+            });
+            if (!uploadDeobfuscationFileResponse.ok) {
+                core.error(`Failed to upload deobfuscation file: ${uploadDeobfuscationFileResponse.statusText}`);
+            }
+            else {
+                core.info(`Successfully uploaded deobfuscation file: ${symbolPath}`);
+            }
+        }
+        core.info(`Getting track info for track: ${track}...`);
+        const getTrackResponse = yield androidPublisherClient.edits.tracks.get({
+            auth: auth,
+            packageName: packageName,
+            editId: editId,
+            track: track
+        });
+        if (!getTrackResponse.ok) {
+            throw new Error(`Failed to get track info for track ${track}: ${getTrackResponse.statusText}`);
+        }
+        const releases = getTrackResponse.data.releases || [];
+        core.info(`Found ${releases.length} existing releases on track ${track}:`);
+        releases.forEach(release => {
+            var _a;
+            core.info(`  > ${release.name} [status: ${release.status}, version codes: ${(_a = release.versionCodes) === null || _a === void 0 ? void 0 : _a.join(', ')}]`);
+        });
+        const newRelease = {
+            name: releaseName || (apkInfo || aabInfo).getReleaseName(),
+            status: releaseStatus,
+            versionCodes: [`${versionCode}`]
+        };
+        core.info(`Adding new release to track ${track}: ${newRelease.name} [status: ${newRelease.status}, version codes: ${(_a = newRelease.versionCodes) === null || _a === void 0 ? void 0 : _a.join(', ')}]`);
+        releases.push(newRelease);
+        core.info(`Updating track ${track}...`);
+        const trackUpdateResponse = yield androidPublisherClient.edits.tracks.update({
+            auth: auth,
+            packageName: packageName,
+            editId: editId,
+            track: track,
+            requestBody: {
+                track: track,
+                releases: releases
+            }
+        });
+        if (!trackUpdateResponse.ok) {
+            throw new Error(`Failed to update track ${track}: ${trackUpdateResponse.statusText}`);
+        }
+        core.info(`Validating edit...`);
+        const validateResponse = yield androidPublisherClient.edits.validate({
+            auth: auth,
+            packageName: packageName,
+            editId: editId
+        });
+        if (!validateResponse.ok) {
+            throw new Error(`Failed to validate edit: ${validateResponse.statusText}`);
+        }
+        core.info(`Committing edit...`);
+        const commitResponse = yield androidPublisherClient.edits.commit({
+            auth: auth,
+            packageName: packageName,
+            editId: editId
+        });
+        if (!commitResponse.ok) {
+            throw new Error(`Failed to commit edit: ${commitResponse.statusText}`);
+        }
+        core.info(`Successfully committed edit for package: ${packageName}`);
+    }
+    catch (error) {
+        core.setFailed(error);
+    }
+});
+main();
+class PackageInfo {
+    constructor(packageName, versionName, versionCode, filePath) {
+        this.packageName = packageName;
+        this.versionName = versionName;
+        this.versionCode = versionCode;
+        this.filePath = filePath;
+    }
+    getReleaseName() {
+        return `${this.versionName} (${this.versionCode})`;
+    }
+}
+function getPackageInfoApk(filePath) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (!filePath || filePath.trim().length === 0) {
+            throw new Error('File path is required to get package name from APK.');
+        }
+        if (!filePath.toLowerCase().endsWith('.apk')) {
+            throw new Error(`File is not an APK: ${filePath}`);
+        }
+        if (!fs.existsSync(filePath)) {
+            throw new Error(`File does not exist at path: ${filePath}`);
+        }
+        try {
+            const aaptPath = yield io.which('aapt', true);
+            let output = '';
+            const result = yield (0, exec_1.exec)(aaptPath, ['dump', 'badging', filePath], {
+                listeners: {
+                    stdout: (data) => {
+                        output += data.toString();
+                    }
+                },
+                ignoreReturnCode: true
+            });
+            if (result !== 0) {
+                throw new Error(`aapt exited with code ${result}\n${output}`);
+            }
+            const pkgMatch = output.match(/package=["']([^"']+)["']/);
+            const versionCodeMatch = output.match(/(?:android:)?versionCode=["']([^"']+)["']/);
+            const versionNameMatch = output.match(/(?:android:)?versionName=["']([^"']+)["']/);
+            if (pkgMatch && versionCodeMatch && versionNameMatch) {
+                return new PackageInfo(pkgMatch[1], versionNameMatch[1], versionCodeMatch[1], filePath);
+            }
+        }
+        catch (error) {
+            throw new Error(`Failed to get package name from APK: ${error}`);
+        }
+        throw new Error(`Package name not found in the manifest of the release asset: ${filePath}`);
+    });
+}
+function getPackageInfoAab(filePath) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (!filePath || filePath.trim().length === 0) {
+            throw new Error('File path is required to get package name from AAB.');
+        }
+        if (!filePath.toLowerCase().endsWith('.aab')) {
+            throw new Error(`File is not an AAB: ${filePath}`);
+        }
+        if (!fs.existsSync(filePath)) {
+            throw new Error(`File does not exist at path: ${filePath}`);
+        }
+        let bundletoolPath;
+        try {
+            bundletoolPath = yield io.which('bundletool', true);
+        }
+        catch (_a) {
+            yield setupBundleTool();
+            bundletoolPath = yield io.which('bundletool', true);
+        }
+        if (!bundletoolPath) {
+            throw new Error('Failed to locate bundletool!');
+        }
+        else {
+            core.info(`bundletool:\n  > ${bundletoolPath}`);
+        }
+        try {
+            let output = '';
+            const result = yield (0, exec_1.exec)(bundletoolPath, ['dump', 'manifest', '--bundle', filePath], {
+                listeners: {
+                    stdout: (data) => {
+                        output += data.toString();
+                    }
+                },
+                silent: !core.isDebug(),
+                ignoreReturnCode: true
+            });
+            if (result !== 0) {
+                throw new Error(`bundletool exited with code ${result}\n${output}`);
+            }
+            const pkgMatch = output.match(/package=["']([^"']+)["']/);
+            const versionCodeMatch = output.match(/(?:android:)?versionCode=["']([^"']+)["']/);
+            const versionNameMatch = output.match(/(?:android:)?versionName=["']([^"']+)["']/);
+            if (pkgMatch && versionCodeMatch && versionNameMatch) {
+                return new PackageInfo(pkgMatch[1], versionNameMatch[1], versionCodeMatch[1], filePath);
+            }
+        }
+        catch (error) {
+            throw new Error(`Failed to get package name from AAB: ${error}`);
+        }
+        throw new Error(`Package name not found in the manifest of the release asset: ${filePath}`);
+    });
+}
+function setupBundleTool() {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b;
+        core.debug('Setting up bundletool...');
+        const javaPath = yield io.which('java', false);
+        if (!javaPath) {
+            throw new Error(`bundletool requires Java to be installed. Use the 'actions/setup-java' action to install Java before this action.`);
+        }
+        const cachedTools = tc.findAllVersions('bundletool', process.arch);
+        if (cachedTools && cachedTools.length > 0) {
+            core.debug(`Found ${cachedTools.length} cached versions of bundletool for architecture: ${process.arch}`);
+            const latestVersion = cachedTools.sort().reverse()[0];
+            core.debug(`Using latest cached version: ${latestVersion}`);
+            const toolPath = tc.find('bundletool', latestVersion, process.arch);
+            core.debug(`Found cached bundletool v${latestVersion}-${process.arch} at ${toolPath}`);
+            core.addPath(toolPath);
+            return toolPath;
+        }
+        const latestRelease = yield octokit.rest.repos.getLatestRelease({
+            owner: 'google',
+            repo: 'bundletool',
+        });
+        if (latestRelease.status !== 200) {
+            throw new Error(`Failed to get latest bundletool release:\n${JSON.stringify(latestRelease, null, 2)}`);
+        }
+        core.debug(`google/bundletool latest release:\n${JSON.stringify(latestRelease.data, null, 2)}`);
+        const jarFile = (_b = (_a = latestRelease.data) === null || _a === void 0 ? void 0 : _a.assets) === null || _b === void 0 ? void 0 : _b.find(asset => asset.name.endsWith('.jar'));
+        if (!jarFile) {
+            throw new Error(`Failed to find bundletool jar file in manifest release from ${latestRelease.data.url}`);
+        }
+        const shimDir = `${process.env.RUNNER_TEMP}/.bundletool`;
+        yield io.mkdirP(shimDir);
+        const shimPath = `${shimDir}/bundletool`;
+        const destPath = `${shimDir}/${jarFile.name}`;
+        core.debug(`installing bundletool version: ${latestRelease.data.tag_name} from ${jarFile.browser_download_url} -> ${destPath}`);
+        const downloadPath = yield tc.downloadTool(jarFile.browser_download_url, destPath);
+        core.debug(`downloaded: ${downloadPath}`);
+        fs.accessSync(downloadPath, fs.constants.R_OK);
+        const stat = fs.statSync(downloadPath);
+        if (stat.size === 0) {
+            throw new Error(`Downloaded bundletool jar is empty: ${downloadPath}`);
+        }
+        const shimContent = `#!/bin/bash\n"${javaPath}" -jar "${downloadPath}" "$@"`;
+        fs.writeFileSync(shimPath, shimContent, { mode: 0o755 });
+        fs.chmodSync(shimPath, 0o755);
+        core.debug(`Created bundletool shim at: ${shimPath}`);
+        const toolPath = yield tc.cacheDir(shimDir, 'bundletool', latestRelease.data.tag_name, process.arch);
+        core.debug(`Cached bundletool v${latestRelease.data.tag_name}-${process.arch}: ${toolPath}`);
+        core.addPath(toolPath);
+        return toolPath;
+    });
+}
+
+
+/***/ }),
+
 /***/ 4978:
 /***/ ((module) => {
 
@@ -62582,408 +63034,13 @@ module.exports = JSON.parse('{"name":"googleapis-common","version":"8.0.1","desc
 /******/ 	})();
 /******/ 	
 /************************************************************************/
-var __webpack_exports__ = {};
-// This entry need to be wrapped in an IIFE because it need to be in strict mode.
-(() => {
-"use strict";
-var exports = __webpack_exports__;
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const google = __nccwpck_require__(8159);
-const core = __nccwpck_require__(2186);
-const glob = __nccwpck_require__(8090);
-const io = __nccwpck_require__(7436);
-const fs = __nccwpck_require__(7147);
-const path = __nccwpck_require__(1017);
-const exec_1 = __nccwpck_require__(1514);
-const tc = __nccwpck_require__(7784);
-const github = __nccwpck_require__(5438);
-let octokit;
-const main = async () => {
-    var _a;
-    try {
-        const githubToken = core.getInput('github-token', { required: false }) || process.env.GITHUB_TOKEN;
-        if (!githubToken) {
-            throw new Error('A GitHub token is required. Please provide it via the "github-token" input or set the GITHUB_TOKEN environment variable.');
-        }
-        octokit = github.getOctokit(githubToken);
-        const credentialsPath = core.getInput('service-account-credentials-path') || process.env.GOOGLE_APPLICATION_CREDENTIALS;
-        if (!credentialsPath) {
-            throw new Error('Missing service account credentials. Please provide the path to the service account JSON file or set the GOOGLE_APPLICATION_CREDENTIALS environment variable.');
-        }
-        const androidPublisherClient = new google.androidpublisher_v3.Androidpublisher({
-            http2: true,
-            auth: new google.auth.GoogleAuth({
-                keyFile: credentialsPath,
-                scopes: ['https://www.googleapis.com/auth/androidpublisher'],
-            }),
-        });
-        const releaseDirectory = core.getInput('release-directory', { required: true });
-        const releaseName = core.getInput('release-name');
-        const track = core.getInput('track') || 'internal';
-        const releaseStatus = core.getInput('release-status') || 'draft';
-        core.info(`Uploading release from directory: ${releaseDirectory}`);
-        if (releaseName) {
-            core.info(`Release name: ${releaseName}`);
-        }
-        core.info(`Track: ${track}`);
-        core.info(`Release status: ${releaseStatus}`);
-        const items = fs.readdirSync(releaseDirectory);
-        if (core.isDebug()) {
-            core.info(`Items in release directory:`);
-            items.forEach(item => {
-                if (fs.statSync(path.join(releaseDirectory, item)).isFile()) {
-                    core.info(`  > ${item}`);
-                }
-            });
-        }
-        if (items.length === 0) {
-            throw new Error(`Release directory is empty: ${releaseDirectory}`);
-        }
-        const basePattern = `${releaseDirectory}/`;
-        const patterns = ['*.aab', '*.apk', '*.obb', '*.zip'];
-        const globPattern = patterns.map(pattern => `${basePattern}${pattern}`).join('\n');
-        core.debug(`Using glob pattern to find release assets:\n${globPattern}`);
-        const globber = await glob.create(globPattern);
-        const releaseAssets = await globber.glob();
-        if (releaseAssets.length === 0) {
-            throw new Error(`No release assets found in directory: ${releaseDirectory}`);
-        }
-        core.info(`Found ${releaseAssets.length} release assets to upload:`);
-        releaseAssets.forEach(asset => core.info(`  > ${path.basename(asset)}`));
-        let apkInfo = null;
-        let aabInfo = null;
-        const expansionFiles = [];
-        const symbolFiles = [];
-        let versionCode = null;
-        for (const assetPath of releaseAssets) {
-            if (assetPath.toLowerCase().endsWith('.apk')) {
-                apkInfo = await getPackageInfoApk(assetPath);
-            }
-            else if (assetPath.toLowerCase().endsWith('.aab')) {
-                aabInfo = await getPackageInfoAab(assetPath);
-            }
-            else if (assetPath.toLowerCase().endsWith('.obb')) {
-                expansionFiles.push(assetPath);
-            }
-            else if (assetPath.toLowerCase().endsWith('.zip')) {
-                symbolFiles.push(assetPath);
-            }
-        }
-        if (apkInfo && aabInfo) {
-            throw new Error('Cannot upload both APK and AAB files in the same release. Please choose one format.');
-        }
-        const packageName = apkInfo ? apkInfo.packageName : aabInfo ? aabInfo.packageName : null;
-        if (!packageName) {
-            throw new Error('Failed to determine package name from release assets.');
-        }
-        core.info(`Inserting edit for package: ${packageName}...`);
-        const insertResponse = await androidPublisherClient.edits.insert({ packageName: packageName });
-        if (!insertResponse.ok) {
-            throw new Error(`Failed to create edit: ${insertResponse.statusText}`);
-        }
-        const editId = insertResponse.data.id;
-        core.info(`Created edit: ${editId} for ${packageName}`);
-        if (apkInfo) {
-            const uploadApkRequest = {
-                editId: editId,
-                packageName: apkInfo.packageName,
-                media: {
-                    mimeType: 'application/octet-stream',
-                    body: fs.createReadStream(apkInfo.filePath),
-                }
-            };
-            core.info(`Uploading APK: ${apkInfo.filePath}...`);
-            const uploadApkResponse = await androidPublisherClient.edits.apks.upload(uploadApkRequest);
-            if (!uploadApkResponse.ok) {
-                throw new Error(`Failed to upload APK: ${uploadApkResponse.statusText}`);
-            }
-            if (!uploadApkResponse.data.versionCode) {
-                throw new Error(`Failed to retrieve version code from uploaded APK ${apkInfo.filePath}.`);
-            }
-            core.info(`Successfully uploaded APK with version code: ${uploadApkResponse.data.versionCode}`);
-            versionCode = uploadApkResponse.data.versionCode;
-            for (const obbPath of expansionFiles) {
-                const expansionFileType = obbPath.toLowerCase().includes('main')
-                    ? 'main'
-                    : obbPath.toLowerCase().includes('patch')
-                        ? 'patch'
-                        : null;
-                if (!expansionFileType) {
-                    core.error(`Skipping OBB expansion file as it is neither prefixed with main nor patch: ${obbPath}`);
-                    continue;
-                }
-                core.info(`Uploading expansion file: ${obbPath}...`);
-                const expansionFileRequest = {
-                    editId: editId,
-                    packageName: packageName,
-                    apkVersionCode: uploadApkResponse.data.versionCode,
-                    expansionFileType: expansionFileType,
-                    media: {
-                        mimeType: 'application/octet-stream',
-                        body: fs.createReadStream(obbPath),
-                    }
-                };
-                const expansionFileResponse = await androidPublisherClient.edits.expansionfiles.upload(expansionFileRequest);
-                if (!expansionFileResponse.ok) {
-                    core.error(`Failed to upload expansion file (${expansionFileType}): ${expansionFileResponse.statusText}`);
-                }
-            }
-        }
-        if (aabInfo) {
-            const uploadBundleRequest = {
-                editId: editId,
-                packageName: aabInfo.packageName,
-                media: {
-                    mimeType: 'application/octet-stream',
-                    body: fs.createReadStream(aabInfo.filePath),
-                }
-            };
-            core.info(`Uploading AAB: ${aabInfo.filePath}...`);
-            const uploadBundleResponse = await androidPublisherClient.edits.bundles.upload(uploadBundleRequest);
-            if (!uploadBundleResponse.ok) {
-                throw new Error(`Failed to upload AAB: ${uploadBundleResponse.statusText}`);
-            }
-            if (!uploadBundleResponse.data.versionCode) {
-                throw new Error(`Failed to retrieve version code from uploaded AAB ${aabInfo.filePath}.`);
-            }
-            core.info(`Successfully uploaded AAB with version code: ${uploadBundleResponse.data.versionCode}`);
-            versionCode = uploadBundleResponse.data.versionCode;
-        }
-        if (!versionCode) {
-            throw new Error('Failed to determine version code from uploaded release asset.');
-        }
-        for (const symbolPath of symbolFiles) {
-            const uploadDeobfuscationFileRequest = {
-                editId: editId,
-                packageName: packageName,
-                apkVersionCode: versionCode,
-                deobfuscationFileType: symbolPath.toLowerCase().endsWith('.zip') ? 'nativeCode' : 'proguard',
-                media: {
-                    mimeType: 'application/octet-stream',
-                    body: fs.createReadStream(symbolPath),
-                }
-            };
-            core.info(`Uploading deobfuscation file: ${symbolPath}...`);
-            const uploadDeobfuscationFileResponse = await androidPublisherClient.edits.deobfuscationfiles.upload(uploadDeobfuscationFileRequest);
-            if (!uploadDeobfuscationFileResponse.ok) {
-                core.error(`Failed to upload deobfuscation file: ${uploadDeobfuscationFileResponse.statusText}`);
-            }
-            else {
-                core.info(`Successfully uploaded deobfuscation file: ${symbolPath}`);
-            }
-        }
-        const getTrackRequest = {
-            packageName: packageName,
-            editId: editId,
-            track: track
-        };
-        core.info(`Getting track info for track: ${track}...`);
-        const getTrackResponse = await androidPublisherClient.edits.tracks.get(getTrackRequest);
-        if (!getTrackResponse.ok) {
-            throw new Error(`Failed to get track info for track ${track}: ${getTrackResponse.statusText}`);
-        }
-        const releases = getTrackResponse.data.releases || [];
-        core.info(`Found ${releases.length} existing releases on track ${track}:`);
-        releases.forEach(release => {
-            var _a;
-            core.info(`  > ${release.name} [status: ${release.status}, version codes: ${(_a = release.versionCodes) === null || _a === void 0 ? void 0 : _a.join(', ')}]`);
-        });
-        const newRelease = {
-            name: releaseName || (apkInfo || aabInfo).getReleaseName(),
-            status: releaseStatus,
-            versionCodes: [`${versionCode}`]
-        };
-        core.info(`Adding new release to track ${track}: ${newRelease.name} [status: ${newRelease.status}, version codes: ${(_a = newRelease.versionCodes) === null || _a === void 0 ? void 0 : _a.join(', ')}]`);
-        releases.push(newRelease);
-        const trackUpdateRequest = {
-            packageName: packageName,
-            editId: editId,
-            track: track,
-            requestBody: {
-                track: track,
-                releases: releases
-            }
-        };
-        core.info(`Updating track ${track}...`);
-        const trackUpdateResponse = await androidPublisherClient.edits.tracks.update(trackUpdateRequest);
-        if (!trackUpdateResponse.ok) {
-            throw new Error(`Failed to update track ${track}: ${trackUpdateResponse.statusText}`);
-        }
-        core.info(`Validating edit...`);
-        const validateResponse = await androidPublisherClient.edits.validate({
-            packageName: packageName,
-            editId: editId
-        });
-        if (!validateResponse.ok) {
-            throw new Error(`Failed to validate edit: ${validateResponse.statusText}`);
-        }
-        core.info(`Committing edit...`);
-        const commitResponse = await androidPublisherClient.edits.commit({
-            packageName: packageName,
-            editId: editId
-        });
-        if (!commitResponse.ok) {
-            throw new Error(`Failed to commit edit: ${commitResponse.statusText}`);
-        }
-        core.info(`Successfully committed edit for package: ${packageName}`);
-    }
-    catch (error) {
-        core.setFailed(error);
-    }
-};
-main();
-class PackageInfo {
-    constructor(packageName, versionName, versionCode, filePath) {
-        this.packageName = packageName;
-        this.versionName = versionName;
-        this.versionCode = versionCode;
-        this.filePath = filePath;
-    }
-    getReleaseName() {
-        return `${this.versionName} (${this.versionCode})`;
-    }
-}
-async function getPackageInfoApk(filePath) {
-    if (!filePath || filePath.trim().length === 0) {
-        throw new Error('File path is required to get package name from APK.');
-    }
-    if (!filePath.toLowerCase().endsWith('.apk')) {
-        throw new Error(`File is not an APK: ${filePath}`);
-    }
-    if (!fs.existsSync(filePath)) {
-        throw new Error(`File does not exist at path: ${filePath}`);
-    }
-    try {
-        const aaptPath = await io.which('aapt', true);
-        let output = '';
-        const result = await (0, exec_1.exec)(aaptPath, ['dump', 'badging', filePath], {
-            listeners: {
-                stdout: (data) => {
-                    output += data.toString();
-                }
-            },
-            ignoreReturnCode: true
-        });
-        if (result !== 0) {
-            throw new Error(`aapt exited with code ${result}\n${output}`);
-        }
-        const pkgMatch = output.match(/package=["']([^"']+)["']/);
-        const versionCodeMatch = output.match(/(?:android:)?versionCode=["']([^"']+)["']/);
-        const versionNameMatch = output.match(/(?:android:)?versionName=["']([^"']+)["']/);
-        if (pkgMatch && versionCodeMatch && versionNameMatch) {
-            return new PackageInfo(pkgMatch[1], versionNameMatch[1], versionCodeMatch[1], filePath);
-        }
-    }
-    catch (error) {
-        throw new Error(`Failed to get package name from APK: ${error}`);
-    }
-    throw new Error(`Package name not found in the manifest of the release asset: ${filePath}`);
-}
-async function getPackageInfoAab(filePath) {
-    if (!filePath || filePath.trim().length === 0) {
-        throw new Error('File path is required to get package name from AAB.');
-    }
-    if (!filePath.toLowerCase().endsWith('.aab')) {
-        throw new Error(`File is not an AAB: ${filePath}`);
-    }
-    if (!fs.existsSync(filePath)) {
-        throw new Error(`File does not exist at path: ${filePath}`);
-    }
-    let bundletoolPath;
-    try {
-        bundletoolPath = await io.which('bundletool', true);
-    }
-    catch (_a) {
-        await setupBundleTool();
-        bundletoolPath = await io.which('bundletool', true);
-    }
-    if (!bundletoolPath) {
-        throw new Error('Failed to locate bundletool!');
-    }
-    else {
-        core.info(`bundletool:\n  > ${bundletoolPath}`);
-    }
-    try {
-        let output = '';
-        const result = await (0, exec_1.exec)(bundletoolPath, ['dump', 'manifest', '--bundle', filePath], {
-            listeners: {
-                stdout: (data) => {
-                    output += data.toString();
-                }
-            },
-            silent: !core.isDebug(),
-            ignoreReturnCode: true
-        });
-        if (result !== 0) {
-            throw new Error(`bundletool exited with code ${result}\n${output}`);
-        }
-        const pkgMatch = output.match(/package=["']([^"']+)["']/);
-        const versionCodeMatch = output.match(/(?:android:)?versionCode=["']([^"']+)["']/);
-        const versionNameMatch = output.match(/(?:android:)?versionName=["']([^"']+)["']/);
-        if (pkgMatch && versionCodeMatch && versionNameMatch) {
-            return new PackageInfo(pkgMatch[1], versionNameMatch[1], versionCodeMatch[1], filePath);
-        }
-    }
-    catch (error) {
-        throw new Error(`Failed to get package name from AAB: ${error}`);
-    }
-    throw new Error(`Package name not found in the manifest of the release asset: ${filePath}`);
-}
-async function setupBundleTool() {
-    var _a, _b;
-    core.debug('Setting up bundletool...');
-    const javaPath = await io.which('java', false);
-    if (!javaPath) {
-        throw new Error(`bundletool requires Java to be installed. Use the 'actions/setup-java' action to install Java before this action.`);
-    }
-    const cachedTools = tc.findAllVersions('bundletool', process.arch);
-    if (cachedTools && cachedTools.length > 0) {
-        core.debug(`Found ${cachedTools.length} cached versions of bundletool for architecture: ${process.arch}`);
-        const latestVersion = cachedTools.sort().reverse()[0];
-        core.debug(`Using latest cached version: ${latestVersion}`);
-        const toolPath = tc.find('bundletool', latestVersion, process.arch);
-        core.debug(`Found cached bundletool v${latestVersion}-${process.arch} at ${toolPath}`);
-        core.addPath(toolPath);
-        return toolPath;
-    }
-    const latestRelease = await octokit.rest.repos.getLatestRelease({
-        owner: 'google',
-        repo: 'bundletool',
-    });
-    if (latestRelease.status !== 200) {
-        throw new Error(`Failed to get latest bundletool release:\n${JSON.stringify(latestRelease, null, 2)}`);
-    }
-    core.debug(`google/bundletool latest release:\n${JSON.stringify(latestRelease.data, null, 2)}`);
-    const jarFile = (_b = (_a = latestRelease.data) === null || _a === void 0 ? void 0 : _a.assets) === null || _b === void 0 ? void 0 : _b.find(asset => asset.name.endsWith('.jar'));
-    if (!jarFile) {
-        throw new Error(`Failed to find bundletool jar file in manifest release from ${latestRelease.data.url}`);
-    }
-    const shimDir = `${process.env.RUNNER_TEMP}/.bundletool`;
-    await io.mkdirP(shimDir);
-    const shimPath = `${shimDir}/bundletool`;
-    const destPath = `${shimDir}/${jarFile.name}`;
-    core.debug(`installing bundletool version: ${latestRelease.data.tag_name} from ${jarFile.browser_download_url} -> ${destPath}`);
-    const downloadPath = await tc.downloadTool(jarFile.browser_download_url, destPath);
-    core.debug(`downloaded: ${downloadPath}`);
-    fs.accessSync(downloadPath, fs.constants.R_OK);
-    const stat = fs.statSync(downloadPath);
-    if (stat.size === 0) {
-        throw new Error(`Downloaded bundletool jar is empty: ${downloadPath}`);
-    }
-    const shimContent = `#!/bin/bash\n"${javaPath}" -jar "${downloadPath}" "$@"`;
-    fs.writeFileSync(shimPath, shimContent, { mode: 0o755 });
-    fs.chmodSync(shimPath, 0o755);
-    core.debug(`Created bundletool shim at: ${shimPath}`);
-    const toolPath = await tc.cacheDir(shimDir, 'bundletool', latestRelease.data.tag_name, process.arch);
-    core.debug(`Cached bundletool v${latestRelease.data.tag_name}-${process.arch}: ${toolPath}`);
-    core.addPath(toolPath);
-    return toolPath;
-}
-
-})();
-
-module.exports = __webpack_exports__;
+/******/ 	
+/******/ 	// startup
+/******/ 	// Load entry module and return exports
+/******/ 	// This entry module is referenced by other modules so it can't be inlined
+/******/ 	var __webpack_exports__ = __nccwpck_require__(6144);
+/******/ 	module.exports = __webpack_exports__;
+/******/ 	
 /******/ })()
 ;
 //# sourceMappingURL=index.js.map

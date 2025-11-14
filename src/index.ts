@@ -7,6 +7,7 @@ import * as path from 'path';
 import { exec } from '@actions/exec';
 import * as tc from '@actions/tool-cache';
 import * as github from '@actions/github';
+import TrackInfo = google.androidpublisher_v3.Schema$TrackRelease;
 
 let octokit: ReturnType<typeof github.getOctokit>;
 
@@ -26,14 +27,11 @@ const main = async () => {
             throw new Error('Missing service account credentials. Please provide the path to the service account JSON file or set the GOOGLE_APPLICATION_CREDENTIALS environment variable.');
         }
 
-        const androidPublisherClient = new google.androidpublisher_v3.Androidpublisher({
-            http2: true,
-            auth: new google.auth.GoogleAuth({
-                keyFile: credentialsPath,
-                scopes: ['https://www.googleapis.com/auth/androidpublisher'],
-            }),
+        const auth = new google.auth.GoogleAuth({
+            keyFile: credentialsPath,
+            scopes: ['https://www.googleapis.com/auth/androidpublisher'],
         });
-
+        const androidPublisherClient = new google.androidpublisher_v3.Androidpublisher({ auth: auth });
         const releaseDirectory = core.getInput('release-directory', { required: true });
         const releaseName = core.getInput('release-name');
         const track = core.getInput('track') || 'internal';
@@ -108,7 +106,10 @@ const main = async () => {
         }
 
         core.info(`Inserting edit for package: ${packageName}...`);
-        const insertResponse = await androidPublisherClient.edits.insert({ packageName: packageName });
+        const insertResponse = await androidPublisherClient.edits.insert({
+            auth: auth,
+            packageName: packageName
+        });
 
         if (!insertResponse.ok) {
             throw new Error(`Failed to create edit: ${insertResponse.statusText}`);
@@ -118,17 +119,16 @@ const main = async () => {
         core.info(`Created edit: ${editId} for ${packageName}`);
 
         if (apkInfo) {
-            const uploadApkRequest: google.androidpublisher_v3.Params$Resource$Edits$Apks$Upload = {
+            core.info(`Uploading APK: ${apkInfo.filePath}...`);
+            const uploadApkResponse = await androidPublisherClient.edits.apks.upload({
+                auth: auth,
                 editId: editId,
                 packageName: apkInfo.packageName,
                 media: {
                     mimeType: 'application/octet-stream',
                     body: fs.createReadStream(apkInfo.filePath),
                 }
-            };
-
-            core.info(`Uploading APK: ${apkInfo.filePath}...`);
-            const uploadApkResponse = await androidPublisherClient.edits.apks.upload(uploadApkRequest);
+            });
 
             if (!uploadApkResponse.ok) {
                 throw new Error(`Failed to upload APK: ${uploadApkResponse.statusText}`);
@@ -155,7 +155,8 @@ const main = async () => {
                 }
 
                 core.info(`Uploading expansion file: ${obbPath}...`);
-                const expansionFileRequest: google.androidpublisher_v3.Params$Resource$Edits$Expansionfiles$Upload = {
+                const expansionFileResponse = await androidPublisherClient.edits.expansionfiles.upload({
+                    auth: auth,
                     editId: editId,
                     packageName: packageName,
                     apkVersionCode: uploadApkResponse.data.versionCode,
@@ -164,9 +165,7 @@ const main = async () => {
                         mimeType: 'application/octet-stream',
                         body: fs.createReadStream(obbPath),
                     }
-                };
-
-                const expansionFileResponse = await androidPublisherClient.edits.expansionfiles.upload(expansionFileRequest);
+                });
 
                 if (!expansionFileResponse.ok) {
                     core.error(`Failed to upload expansion file (${expansionFileType}): ${expansionFileResponse.statusText}`);
@@ -175,17 +174,16 @@ const main = async () => {
         }
 
         if (aabInfo) {
-            const uploadBundleRequest: google.androidpublisher_v3.Params$Resource$Edits$Bundles$Upload = {
+            core.info(`Uploading AAB: ${aabInfo.filePath}...`);
+            const uploadBundleResponse = await androidPublisherClient.edits.bundles.upload({
+                auth: auth,
                 editId: editId,
                 packageName: aabInfo.packageName,
                 media: {
                     mimeType: 'application/octet-stream',
                     body: fs.createReadStream(aabInfo.filePath),
                 }
-            };
-
-            core.info(`Uploading AAB: ${aabInfo.filePath}...`);
-            const uploadBundleResponse = await androidPublisherClient.edits.bundles.upload(uploadBundleRequest);
+            });
 
             if (!uploadBundleResponse.ok) {
                 throw new Error(`Failed to upload AAB: ${uploadBundleResponse.statusText}`);
@@ -204,7 +202,9 @@ const main = async () => {
         }
 
         for (const symbolPath of symbolFiles) {
-            const uploadDeobfuscationFileRequest: google.androidpublisher_v3.Params$Resource$Edits$Deobfuscationfiles$Upload = {
+            core.info(`Uploading deobfuscation file: ${symbolPath}...`);
+            const uploadDeobfuscationFileResponse = await androidPublisherClient.edits.deobfuscationfiles.upload({
+                auth: auth,
                 editId: editId,
                 packageName: packageName,
                 apkVersionCode: versionCode!,
@@ -213,10 +213,7 @@ const main = async () => {
                     mimeType: 'application/octet-stream',
                     body: fs.createReadStream(symbolPath),
                 }
-            };
-
-            core.info(`Uploading deobfuscation file: ${symbolPath}...`);
-            const uploadDeobfuscationFileResponse = await androidPublisherClient.edits.deobfuscationfiles.upload(uploadDeobfuscationFileRequest);
+            });
 
             if (!uploadDeobfuscationFileResponse.ok) {
                 core.error(`Failed to upload deobfuscation file: ${uploadDeobfuscationFileResponse.statusText}`);
@@ -226,27 +223,26 @@ const main = async () => {
             }
         }
 
-        const getTrackRequest: google.androidpublisher_v3.Params$Resource$Edits$Tracks$Get = {
+        core.info(`Getting track info for track: ${track}...`);
+        const getTrackResponse = await androidPublisherClient.edits.tracks.get({
+            auth: auth,
             packageName: packageName,
             editId: editId,
             track: track
-        };
-
-        core.info(`Getting track info for track: ${track}...`);
-        const getTrackResponse = await androidPublisherClient.edits.tracks.get(getTrackRequest);
+        });
 
         if (!getTrackResponse.ok) {
             throw new Error(`Failed to get track info for track ${track}: ${getTrackResponse.statusText}`);
         }
 
-        const releases: google.androidpublisher_v3.Schema$TrackRelease[] = getTrackResponse.data.releases || [];
+        const releases: TrackInfo[] = getTrackResponse.data.releases || [];
 
         core.info(`Found ${releases.length} existing releases on track ${track}:`);
         releases.forEach(release => {
             core.info(`  > ${release.name} [status: ${release.status}, version codes: ${release.versionCodes?.join(', ')}]`);
         });
 
-        const newRelease: google.androidpublisher_v3.Schema$TrackRelease = {
+        const newRelease: TrackInfo = {
             name: releaseName || (apkInfo || aabInfo)!.getReleaseName(),
             status: releaseStatus,
             versionCodes: [`${versionCode}`]
@@ -255,7 +251,9 @@ const main = async () => {
         core.info(`Adding new release to track ${track}: ${newRelease.name} [status: ${newRelease.status}, version codes: ${newRelease.versionCodes?.join(', ')}]`);
         releases.push(newRelease);
 
-        const trackUpdateRequest: google.androidpublisher_v3.Params$Resource$Edits$Tracks$Update = {
+        core.info(`Updating track ${track}...`);
+        const trackUpdateResponse = await androidPublisherClient.edits.tracks.update({
+            auth: auth,
             packageName: packageName,
             editId: editId,
             track: track,
@@ -263,10 +261,7 @@ const main = async () => {
                 track: track,
                 releases: releases
             }
-        };
-
-        core.info(`Updating track ${track}...`);
-        const trackUpdateResponse = await androidPublisherClient.edits.tracks.update(trackUpdateRequest);
+        });
 
         if (!trackUpdateResponse.ok) {
             throw new Error(`Failed to update track ${track}: ${trackUpdateResponse.statusText}`);
@@ -274,6 +269,7 @@ const main = async () => {
 
         core.info(`Validating edit...`);
         const validateResponse = await androidPublisherClient.edits.validate({
+            auth: auth,
             packageName: packageName,
             editId: editId
         });
@@ -284,6 +280,7 @@ const main = async () => {
 
         core.info(`Committing edit...`);
         const commitResponse = await androidPublisherClient.edits.commit({
+            auth: auth,
             packageName: packageName,
             editId: editId
         });
