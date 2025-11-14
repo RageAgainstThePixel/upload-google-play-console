@@ -19,8 +19,8 @@ inputs:
     required: false
     default: 'draft'
   github-token:
-    description: 'GitHub token for authentication. Optional, defaults to GITHUB_TOKEN secret.'
-    required: false
+    description: 'GitHub token for authentication. Use either `secrets.GITHUB_TOKEN`, `github.token` or a personal access token.'
+    required: true
 runs:
   using: node20
   main: dist/index.js

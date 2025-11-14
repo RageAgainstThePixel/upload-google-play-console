@@ -12,7 +12,12 @@ let octokit: ReturnType<typeof github.getOctokit>;
 
 const main = async () => {
     try {
-        const githubToken = core.getInput('github-token', { required: false }) || process.env.GITHUB_TOKEN || process.env.ACTIONS_RUNTIME_TOKEN || '';
+        const githubToken = core.getInput('github-token', { required: false }) || process.env.GITHUB_TOKEN;
+
+        if (!githubToken) {
+            throw new Error('A GitHub token is required. Please provide it via the "github-token" input or set the GITHUB_TOKEN environment variable.');
+        }
+
         octokit = github.getOctokit(githubToken);
 
         const credentialsPath = core.getInput('service-account-credentials-path') || process.env.GOOGLE_APPLICATION_CREDENTIALS;
@@ -403,6 +408,16 @@ async function setupBundleTool(): Promise<string> {
         throw new Error(`bundletool requires Java to be installed. Use the 'actions/setup-java' action to install Java before this action.`);
     }
 
+    const cachedTools = tc.findAllVersions('bundletool', process.arch);
+
+    if (cachedTools) {
+        const latestVersion = cachedTools.sort().reverse()[0];
+        const toolPath = tc.find('bundletool', latestVersion, process.arch);
+        core.info(`Found cached bundletool v${latestVersion}-${process.arch} at ${toolPath}`);
+        core.addPath(toolPath);
+        return toolPath;
+    }
+
     const latestRelease = await octokit.rest.repos.getLatestRelease({
         owner: 'google',
         repo: 'bundletool',
@@ -421,31 +436,28 @@ async function setupBundleTool(): Promise<string> {
         throw new Error(`Failed to find bundletool jar file in manifest release from ${latestRelease.data.url}`);
     }
 
-    core.info(`installing bundletool version: ${latestRelease.data.tag_name} from ${jarFile.browser_download_url}`);
-    const downloadPath = await tc.downloadTool(jarFile.browser_download_url);
-    // find the release jar file
-    // bundletool-all-<version>.jar
-    const globber = await glob.create(`${downloadPath}/bundletool-all-*.jar`);
-    const jarFiles = await globber.glob();
-
-    if (jarFiles.length !== 1) {
-        throw new Error(`Failed to locate bundletool jar file in downloaded release from ${latestRelease.data.url}`);
-    }
-
-    const bundletoolJarPath = jarFiles[0];
-    core.info(`downloaded: ${bundletoolJarPath}`);
-
     // create a shim script to run bundletool
     const shimDir = `${process.env.RUNNER_TEMP}/.bundletool`;
     await io.mkdirP(shimDir);
     const shimPath = `${shimDir}/bundletool`;
-    const shimContent = `#!/bin/bash\n"${javaPath}" -jar "${bundletoolJarPath}" "$@"`;
+    const destPath = `${shimDir}/${jarFile.name}`;
+
+    core.info(`installing bundletool version: ${latestRelease.data.tag_name} from ${jarFile.browser_download_url} -> ${destPath}`);
+
+    const downloadPath = await tc.downloadTool(jarFile.browser_download_url, destPath);
+
+    core.info(`downloaded: ${downloadPath}`);
+    fs.accessSync(downloadPath, fs.constants.R_OK);
+    const stat = fs.statSync(downloadPath);
+
+    if (stat.size === 0) {
+        throw new Error(`Downloaded bundletool jar is empty: ${downloadPath}`);
+    }
+
+    // create a shim script to run bundletool with java
+    const shimContent = `#!/bin/bash\n"${javaPath}" -jar "${downloadPath}" "$@"`;
     fs.writeFileSync(shimPath, shimContent, { mode: 0o755 });
     fs.chmodSync(shimPath, 0o755);
-
-    // copy the jar to the shim directory
-    fs.copyFileSync(bundletoolJarPath, `${shimDir}/${path.basename(bundletoolJarPath)}`);
-
     core.info(`Created bundletool shim at: ${shimPath}`);
 
     // cache the tool
