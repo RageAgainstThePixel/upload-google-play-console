@@ -39,6 +39,7 @@ jobs:
           release-notes: 'Initial release of my app.' # optional
           track: 'internal' # optional, defaults to 'internal'
           release-status: 'draft' # optional, defaults to 'draft'
+          github-token: ${{ secrets.GITHUB_TOKEN }} # optional, defaults to GITHUB_TOKEN secret
 ```
 
 ### inputs
@@ -50,3 +51,4 @@ jobs:
 | `release-name` | The name of the release. | Defaults to reading manifest data (version code and version string). |
 | `track` | The track to upload the app to (e.g., `internal`, `alpha`, `beta`, `production`). | Defaults to `internal`. |
 | `release-status` | The status of the release (e.g., `draft`, `inProgress`, `completed`, `halted`). | Defaults to `draft`. |
+| `github-token` | GitHub token for authentication. | Optional, defaults to GITHUB_TOKEN secret. |

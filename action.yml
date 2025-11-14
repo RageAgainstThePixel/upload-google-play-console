@@ -18,6 +18,9 @@ inputs:
     description: 'The status of the release (e.g., draft, inProgress, completed, halted).'
     required: false
     default: 'draft'
+  github-token:
+    description: 'GitHub token for authentication. Optional, defaults to GITHUB_TOKEN secret.'
+    required: false
 runs:
   using: node20
   main: dist/index.js

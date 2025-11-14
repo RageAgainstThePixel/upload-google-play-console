@@ -6,9 +6,20 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { exec } from '@actions/exec';
 import * as tc from '@actions/tool-cache';
+import * as github from '@actions/github';
+
+let octokit: ReturnType<typeof github.getOctokit>;
 
 const main = async () => {
     try {
+        const githubToken = core.getInput('github-token', { required: false }) || process.env.GITHUB_TOKEN || undefined;
+
+        if (!githubToken) {
+            throw new Error('GitHub token is required to create a release. Please ensure your workflow enables permissions for GITHUB_TOKEN or pass a personal access token.');
+        }
+
+        octokit = github.getOctokit(githubToken);
+
         const credentialsPath = core.getInput('service-account-credentials-path') || process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
         if (!credentialsPath) {
@@ -397,23 +408,33 @@ async function setupBundleTool(): Promise<string> {
         throw new Error(`bundletool requires Java to be installed. Use the 'actions/setup-java' action to install Java before this action.`);
     }
 
-    const manifest: tc.IToolRelease[] = await getManifest('google', 'bundletool');
-    const release = manifest[0];
-    const jarFile = release.files.find(f => f.filename.endsWith('.jar')); // bundletool-all-<version>.jar which means any architecture
+    const latestRelease = await octokit.rest.repos.getLatestRelease({
+        owner: 'google',
+        repo: 'bundletool',
+    });
 
-    if (!jarFile) {
-        throw new Error(`Failed to find bundletool jar file in manifest release from ${release.release_url}`);
+    if (latestRelease.status !== 200) {
+        throw new Error(`Failed to get latest bundletool release:\n${JSON.stringify(latestRelease, null, 2)}`);
     }
 
-    core.info(`installing bundletool version: ${release.version} from ${jarFile.download_url}`);
-    const downloadPath = await tc.downloadTool(jarFile.download_url);
+    core.info(`google/bundletool latest release:\n${JSON.stringify(latestRelease.data, null, 2)}`);
+
+    // bundletool-all-<version>.jar which means any architecture
+    const jarFile = latestRelease.data?.assets?.find(asset => asset.name.endsWith('.jar'));
+
+    if (!jarFile) {
+        throw new Error(`Failed to find bundletool jar file in manifest release from ${latestRelease.data.url}`);
+    }
+
+    core.info(`installing bundletool version: ${latestRelease.data.tag_name} from ${jarFile.browser_download_url}`);
+    const downloadPath = await tc.downloadTool(jarFile.browser_download_url);
     // find the release jar file
     // bundletool-all-<version>.jar
     const globber = await glob.create(`${downloadPath}/bundletool-all-*.jar`);
     const jarFiles = await globber.glob();
 
     if (jarFiles.length !== 1) {
-        throw new Error(`Failed to locate bundletool jar file in downloaded release from ${release.release_url}`);
+        throw new Error(`Failed to locate bundletool jar file in downloaded release from ${latestRelease.data.url}`);
     }
 
     const bundletoolJarPath = jarFiles[0];
@@ -433,8 +454,8 @@ async function setupBundleTool(): Promise<string> {
     core.info(`Created bundletool shim at: ${shimPath}`);
 
     // cache the tool
-    const toolPath = await tc.cacheDir(shimDir, 'bundletool', release.version, process.arch);
-    core.info(`Cached bundletool v${release.version}-${process.arch}: ${toolPath}`);
+    const toolPath = await tc.cacheDir(shimDir, 'bundletool', latestRelease.data.tag_name, process.arch);
+    core.info(`Cached bundletool v${latestRelease.data.tag_name}-${process.arch}: ${toolPath}`);
     core.addPath(toolPath);
     return toolPath;
 }
