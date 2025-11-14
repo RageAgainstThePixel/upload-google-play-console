@@ -21,15 +21,18 @@ const main = async () => {
 
         octokit = github.getOctokit(githubToken);
 
-        const credentialsPath = core.getInput('service-account-credentials-path') || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        const credentialsPath = core.getInput('service-account-credentials-path');
 
-        if (!credentialsPath) {
+        if (!credentialsPath && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
             throw new Error('Missing service account credentials. Please provide the path to the service account JSON file or set the GOOGLE_APPLICATION_CREDENTIALS environment variable.');
         }
 
+        if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+            process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsPath;
+        }
+
         const auth = new google.auth.GoogleAuth({
-            keyFile: credentialsPath,
-            scopes: ['https://www.googleapis.com/auth/androidpublisher'],
+            scopes: ['https://www.googleapis.com/auth/androidpublisher']
         });
         const androidPublisherClient = new google.androidpublisher_v3.Androidpublisher({ auth: auth });
         const releaseDirectory = core.getInput('release-directory', { required: true });
