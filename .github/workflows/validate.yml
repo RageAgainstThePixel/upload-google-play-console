@@ -69,6 +69,7 @@ jobs:
       - uses: google-github-actions/auth@v3
         id: auth
         with:
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
           service_account: unity-build-tests@unity-build-tests.iam.gserviceaccount.com
           workload_identity_provider: projects/1076244883472/locations/global/workloadIdentityPools/github/providers/upload-google-play-console
       - name: Upload Build Artifact
