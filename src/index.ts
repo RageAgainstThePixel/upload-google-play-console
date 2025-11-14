@@ -107,6 +107,7 @@ const main = async () => {
             throw new Error('Failed to determine package name from release assets.');
         }
 
+        core.info(`Inserting edit for package: ${packageName}`);
         const insertResponse = await androidPublisherClient.edits.insert({ packageName: packageName });
 
         if (!insertResponse.ok) {
@@ -114,6 +115,7 @@ const main = async () => {
         }
 
         const editId = insertResponse.data.id;
+        core.info(`Created edit: ${editId} for ${packageName}`);
 
         if (apkInfo) {
             const uploadApkRequest: google.androidpublisher_v3.Params$Resource$Edits$Apks$Upload = {
@@ -125,6 +127,7 @@ const main = async () => {
                 }
             };
 
+            core.info(`Uploading APK: ${apkInfo.filePath}...`);
             const uploadApkResponse = await androidPublisherClient.edits.apks.upload(uploadApkRequest);
 
             if (!uploadApkResponse.ok) {
@@ -151,6 +154,7 @@ const main = async () => {
                     continue;
                 }
 
+                core.info(`Uploading expansion file: ${obbPath}...`);
                 const expansionFileRequest: google.androidpublisher_v3.Params$Resource$Edits$Expansionfiles$Upload = {
                     editId: editId,
                     packageName: packageName,
@@ -179,6 +183,8 @@ const main = async () => {
                     body: fs.createReadStream(aabInfo.filePath),
                 }
             };
+
+            core.info(`Uploading AAB: ${aabInfo.filePath}...`);
             const uploadBundleResponse = await androidPublisherClient.edits.bundles.upload(uploadBundleRequest);
 
             if (!uploadBundleResponse.ok) {
@@ -208,10 +214,15 @@ const main = async () => {
                     body: fs.createReadStream(symbolPath),
                 }
             };
+
+            core.info(`Uploading deobfuscation file: ${symbolPath}...`);
             const uploadDeobfuscationFileResponse = await androidPublisherClient.edits.deobfuscationfiles.upload(uploadDeobfuscationFileRequest);
 
             if (!uploadDeobfuscationFileResponse.ok) {
                 core.error(`Failed to upload deobfuscation file: ${uploadDeobfuscationFileResponse.statusText}`);
+            }
+            else {
+                core.info(`Successfully uploaded deobfuscation file: ${symbolPath}`);
             }
         }
 
@@ -221,6 +232,7 @@ const main = async () => {
             track: track
         };
 
+        core.info(`Getting track info for track: ${track}...`);
         const getTrackResponse = await androidPublisherClient.edits.tracks.get(getTrackRequest);
 
         if (!getTrackResponse.ok) {
@@ -229,11 +241,19 @@ const main = async () => {
 
         const releases: google.androidpublisher_v3.Schema$TrackRelease[] = getTrackResponse.data.releases || [];
 
-        releases.push({
+        core.info(`Found ${releases.length} existing releases on track ${track}:`);
+        releases.forEach(release => {
+            core.info(`  > ${release.name} [status: ${release.status}, version codes: ${release.versionCodes?.join(', ')}]`);
+        });
+
+        const newRelease: google.androidpublisher_v3.Schema$TrackRelease = {
             name: releaseName || (apkInfo || aabInfo)!.getReleaseName(),
             status: releaseStatus,
-            versionCodes: [`${versionCode}`],
-        });
+            versionCodes: [`${versionCode}`]
+        };
+
+        core.info(`Adding new release to track ${track}: ${newRelease.name} [status: ${newRelease.status}, version codes: ${newRelease.versionCodes?.join(', ')}]`);
+        releases.push(newRelease);
 
         const trackUpdateRequest: google.androidpublisher_v3.Params$Resource$Edits$Tracks$Update = {
             packageName: packageName,
@@ -241,25 +261,28 @@ const main = async () => {
             track: track,
             requestBody: {
                 track: track,
-                releases: releases,
+                releases: releases
             }
         };
 
+        core.info(`Updating track ${track}...`);
         const trackUpdateResponse = await androidPublisherClient.edits.tracks.update(trackUpdateRequest);
 
         if (!trackUpdateResponse.ok) {
             throw new Error(`Failed to update track ${track}: ${trackUpdateResponse.statusText}`);
         }
 
+        core.info(`Validating edit...`);
         const validateResponse = await androidPublisherClient.edits.validate({
             packageName: packageName,
-            editId: editId,
+            editId: editId
         });
 
         if (!validateResponse.ok) {
             throw new Error(`Failed to validate edit: ${validateResponse.statusText}`);
         }
 
+        core.info(`Committing edit...`);
         const commitResponse = await androidPublisherClient.edits.commit({
             packageName: packageName,
             editId: editId
@@ -268,6 +291,8 @@ const main = async () => {
         if (!commitResponse.ok) {
             throw new Error(`Failed to commit edit: ${commitResponse.statusText}`);
         }
+
+        core.info(`Successfully committed edit for package: ${packageName}`);
     } catch (error) {
         core.setFailed(error);
     }
@@ -374,7 +399,7 @@ async function getPackageInfoAab(filePath: string): Promise<PackageInfo> {
     if (!bundletoolPath) {
         throw new Error('Failed to locate bundletool!');
     } else {
-        core.info(`Using bundletool at path: ${bundletoolPath}`);
+        core.info(`bundletool:\n  > ${bundletoolPath}`);
     }
 
     try {
@@ -423,11 +448,11 @@ async function setupBundleTool(): Promise<string> {
     const cachedTools = tc.findAllVersions('bundletool', process.arch);
 
     if (cachedTools && cachedTools.length > 0) {
-        core.info(`Found ${cachedTools.length} cached versions of bundletool for architecture: ${process.arch}`);
+        core.debug(`Found ${cachedTools.length} cached versions of bundletool for architecture: ${process.arch}`);
         const latestVersion = cachedTools.sort().reverse()[0];
-        core.info(`Using latest cached version: ${latestVersion}`);
+        core.debug(`Using latest cached version: ${latestVersion}`);
         const toolPath = tc.find('bundletool', latestVersion, process.arch);
-        core.info(`Found cached bundletool v${latestVersion}-${process.arch} at ${toolPath}`);
+        core.debug(`Found cached bundletool v${latestVersion}-${process.arch} at ${toolPath}`);
         core.addPath(toolPath);
         return toolPath;
     }
@@ -472,11 +497,11 @@ async function setupBundleTool(): Promise<string> {
     const shimContent = `#!/bin/bash\n"${javaPath}" -jar "${downloadPath}" "$@"`;
     fs.writeFileSync(shimPath, shimContent, { mode: 0o755 });
     fs.chmodSync(shimPath, 0o755);
-    core.info(`Created bundletool shim at: ${shimPath}`);
+    core.debug(`Created bundletool shim at: ${shimPath}`);
 
     // cache the tool
     const toolPath = await tc.cacheDir(shimDir, 'bundletool', latestRelease.data.tag_name, process.arch);
-    core.info(`Cached bundletool v${latestRelease.data.tag_name}-${process.arch}: ${toolPath}`);
+    core.debug(`Cached bundletool v${latestRelease.data.tag_name}-${process.arch}: ${toolPath}`);
     core.addPath(toolPath);
     return toolPath;
 }
