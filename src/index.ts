@@ -12,10 +12,10 @@ let octokit: ReturnType<typeof github.getOctokit>;
 
 const main = async () => {
     try {
-        const githubToken = core.getInput('github-token', { required: false }) || process.env.GITHUB_TOKEN || undefined;
+        const githubToken = core.getInput('github-token', { required: false }) || process.env.GITHUB_TOKEN;
 
         if (!githubToken) {
-            throw new Error('GitHub token is required to create a release. Please ensure your workflow enables permissions for GITHUB_TOKEN or pass a personal access token.');
+            throw new Error('GitHub token is required. Please ensure your workflow enables permissions for GITHUB_TOKEN or pass a personal access token.');
         }
 
         octokit = github.getOctokit(githubToken);
