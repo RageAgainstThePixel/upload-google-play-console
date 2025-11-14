@@ -410,8 +410,10 @@ async function setupBundleTool(): Promise<string> {
 
     const cachedTools = tc.findAllVersions('bundletool', process.arch);
 
-    if (cachedTools) {
+    if (cachedTools && cachedTools.length > 0) {
+        core.info(`Found ${cachedTools.length} cached versions of bundletool for architecture: ${process.arch}`);
         const latestVersion = cachedTools.sort().reverse()[0];
+        core.info(`Using latest cached version: ${latestVersion}`);
         const toolPath = tc.find('bundletool', latestVersion, process.arch);
         core.info(`Found cached bundletool v${latestVersion}-${process.arch} at ${toolPath}`);
         core.addPath(toolPath);
