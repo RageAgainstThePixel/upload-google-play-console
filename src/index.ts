@@ -12,12 +12,7 @@ let octokit: ReturnType<typeof github.getOctokit>;
 
 const main = async () => {
     try {
-        const githubToken = core.getInput('github-token', { required: false }) || process.env.GITHUB_TOKEN;
-
-        if (!githubToken) {
-            throw new Error('GitHub token is required. Please ensure your workflow enables permissions for GITHUB_TOKEN or pass a personal access token.');
-        }
-
+        const githubToken = core.getInput('github-token', { required: false }) || process.env.GITHUB_TOKEN || process.env.ACTIONS_RUNTIME_TOKEN || '';
         octokit = github.getOctokit(githubToken);
 
         const credentialsPath = core.getInput('service-account-credentials-path') || process.env.GOOGLE_APPLICATION_CREDENTIALS;

@@ -76,4 +76,3 @@ jobs:
         with:
           service-account-credentials-path: ${{ steps.auth.outputs.credentials_file_path }}
           release-directory: ${{ steps.unity-setup.outputs.unity-project-path }}/Builds/Android
-          github-token: ${{ github.token }}
