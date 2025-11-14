@@ -1,4 +1,4 @@
-import * as google from 'googleapis';
+import * as google from '@googleapis/androidpublisher';
 import * as core from '@actions/core';
 import * as glob from '@actions/glob';
 import * as io from '@actions/io';
@@ -28,7 +28,7 @@ const main = async () => {
 
         const androidPublisherClient = new google.androidpublisher_v3.Androidpublisher({
             http2: true,
-            auth: new google.Auth.GoogleAuth({
+            auth: new google.auth.GoogleAuth({
                 keyFile: credentialsPath,
                 scopes: ['https://www.googleapis.com/auth/androidpublisher'],
             }),
@@ -107,7 +107,7 @@ const main = async () => {
             throw new Error('Failed to determine package name from release assets.');
         }
 
-        core.info(`Inserting edit for package: ${packageName}`);
+        core.info(`Inserting edit for package: ${packageName}...`);
         const insertResponse = await androidPublisherClient.edits.insert({ packageName: packageName });
 
         if (!insertResponse.ok) {
