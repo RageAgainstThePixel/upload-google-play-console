@@ -48,18 +48,25 @@ const main = async () => {
         core.info(`Track: ${track}`);
         core.info(`Release status: ${releaseStatus}`);
 
-        const files = fs.readdirSync(releaseDirectory);
-        core.info(`Files in release directory:`);
-        files.forEach(element => core.info(`  > ${element}`));
+        const items = fs.readdirSync(releaseDirectory);
 
-        if (files.length === 0) {
+        if (core.isDebug()) {
+            core.info(`Items in release directory:`);
+            items.forEach(item => {
+                if (fs.statSync(path.join(releaseDirectory, item)).isFile()) {
+                    core.info(`  > ${item}`);
+                }
+            });
+        }
+
+        if (items.length === 0) {
             throw new Error(`Release directory is empty: ${releaseDirectory}`);
         }
 
         const basePattern = `${releaseDirectory}/`;
         const patterns = ['*.aab', '*.apk', '*.obb', '*.zip'];
         const globPattern = patterns.map(pattern => `${basePattern}${pattern}`).join('\n');
-        core.info(`Using glob pattern to find release assets:\n${globPattern}`);
+        core.debug(`Using glob pattern to find release assets:\n${globPattern}`);
         const globber = await glob.create(globPattern);
         const releaseAssets = await globber.glob();
 
@@ -68,7 +75,7 @@ const main = async () => {
         }
 
         core.info(`Found ${releaseAssets.length} release assets to upload:`);
-        releaseAssets.forEach(asset => core.info(`  > ${asset}`));
+        releaseAssets.forEach(asset => core.info(`  > ${path.basename(asset)}`));
 
         let apkInfo: PackageInfo | null = null;
         let aabInfo: PackageInfo | null = null;
@@ -318,13 +325,15 @@ async function getPackageInfoApk(filePath: string): Promise<PackageInfo> {
             throw new Error(`aapt exited with code ${result}\n${output}`);
         }
 
-        const match = output.match(/package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'/);
+        const pkgMatch = output.match(/package=["']([^"']+)["']/);
+        const versionCodeMatch = output.match(/(?:android:)?versionCode=["']([^"']+)["']/);
+        const versionNameMatch = output.match(/(?:android:)?versionName=["']([^"']+)["']/);
 
-        if (match && match[1] && match[2] && match[3]) {
+        if (pkgMatch && versionCodeMatch && versionNameMatch) {
             return new PackageInfo(
-                match[1],
-                match[3],
-                match[2],
+                pkgMatch[1],
+                versionNameMatch[1],
+                versionCodeMatch[1],
                 filePath
             );
         }
@@ -376,6 +385,7 @@ async function getPackageInfoAab(filePath: string): Promise<PackageInfo> {
                     output += data.toString();
                 }
             },
+            silent: !core.isDebug(),
             ignoreReturnCode: true
         });
 
@@ -383,13 +393,15 @@ async function getPackageInfoAab(filePath: string): Promise<PackageInfo> {
             throw new Error(`bundletool exited with code ${result}\n${output}`);
         }
 
-        const match = output.match(/package="([^"]+)" versionCode="([^"]+)" versionName="([^"]+)"/);
+        const pkgMatch = output.match(/package=["']([^"']+)["']/);
+        const versionCodeMatch = output.match(/(?:android:)?versionCode=["']([^"']+)["']/);
+        const versionNameMatch = output.match(/(?:android:)?versionName=["']([^"']+)["']/);
 
-        if (match && match[1] && match[2] && match[3]) {
+        if (pkgMatch && versionCodeMatch && versionNameMatch) {
             return new PackageInfo(
-                match[1],
-                match[3],
-                match[2],
+                pkgMatch[1],
+                versionNameMatch[1],
+                versionCodeMatch[1],
                 filePath
             );
         }
@@ -401,7 +413,7 @@ async function getPackageInfoAab(filePath: string): Promise<PackageInfo> {
 }
 
 async function setupBundleTool(): Promise<string> {
-    core.info('Setting up bundletool...');
+    core.debug('Setting up bundletool...');
     const javaPath = await io.which('java', false);
 
     if (!javaPath) {
@@ -429,7 +441,7 @@ async function setupBundleTool(): Promise<string> {
         throw new Error(`Failed to get latest bundletool release:\n${JSON.stringify(latestRelease, null, 2)}`);
     }
 
-    core.info(`google/bundletool latest release:\n${JSON.stringify(latestRelease.data, null, 2)}`);
+    core.debug(`google/bundletool latest release:\n${JSON.stringify(latestRelease.data, null, 2)}`);
 
     // bundletool-all-<version>.jar which means any architecture
     const jarFile = latestRelease.data?.assets?.find(asset => asset.name.endsWith('.jar'));
@@ -444,11 +456,11 @@ async function setupBundleTool(): Promise<string> {
     const shimPath = `${shimDir}/bundletool`;
     const destPath = `${shimDir}/${jarFile.name}`;
 
-    core.info(`installing bundletool version: ${latestRelease.data.tag_name} from ${jarFile.browser_download_url} -> ${destPath}`);
+    core.debug(`installing bundletool version: ${latestRelease.data.tag_name} from ${jarFile.browser_download_url} -> ${destPath}`);
 
     const downloadPath = await tc.downloadTool(jarFile.browser_download_url, destPath);
 
-    core.info(`downloaded: ${downloadPath}`);
+    core.debug(`downloaded: ${downloadPath}`);
     fs.accessSync(downloadPath, fs.constants.R_OK);
     const stat = fs.statSync(downloadPath);
 
@@ -467,35 +479,4 @@ async function setupBundleTool(): Promise<string> {
     core.info(`Cached bundletool v${latestRelease.data.tag_name}-${process.arch}: ${toolPath}`);
     core.addPath(toolPath);
     return toolPath;
-}
-
-async function getManifest(owner: string, repo: string): Promise<tc.IToolRelease[]> {
-    core.info(`Retrieving manifest for ${owner}/${repo}/master...`);
-    const manifest = await tc.getManifestFromRepo(owner, repo, undefined, 'master');
-
-    if (Array.isArray(manifest) &&
-        manifest.length &&
-        manifest.length > 0 &&
-        manifest.every(isIToolRelease)) {
-        return manifest;
-    }
-
-    throw new Error(`Failed to retrieve valid manifest for ${owner}/${repo}.`);
-}
-
-function isIToolRelease(obj: any): obj is tc.IToolRelease {
-    return (
-        typeof obj === 'object' &&
-        obj !== null &&
-        typeof obj.version === 'string' &&
-        typeof obj.stable === 'boolean' &&
-        Array.isArray(obj.files) &&
-        obj.files.every(
-            (file: any) =>
-                typeof file.filename === 'string' &&
-                typeof file.platform === 'string' &&
-                typeof file.arch === 'string' &&
-                typeof file.download_url === 'string'
-        )
-    );
 }
