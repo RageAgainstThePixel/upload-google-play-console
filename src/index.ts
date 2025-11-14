@@ -400,9 +400,11 @@ async function setupBundleTool(): Promise<string> {
     const manifest: tc.IToolRelease[] = await getManifest('google', 'bundletool');
     const release = manifest[0];
     const jarFile = release.files.find(f => f.filename.endsWith('.jar')); // bundletool-all-<version>.jar which means any architecture
+
     if (!jarFile) {
         throw new Error(`Failed to find bundletool jar file in manifest release from ${release.release_url}`);
     }
+
     core.info(`installing bundletool version: ${release.version} from ${jarFile.download_url}`);
     const downloadPath = await tc.downloadTool(jarFile.download_url);
     // find the release jar file
@@ -438,6 +440,7 @@ async function setupBundleTool(): Promise<string> {
 }
 
 async function getManifest(owner: string, repo: string): Promise<tc.IToolRelease[]> {
+    core.info(`Retrieving manifest for ${owner}/${repo}...`);
     const manifest = await tc.getManifestFromRepo(owner, repo);
 
     if (Array.isArray(manifest) &&
