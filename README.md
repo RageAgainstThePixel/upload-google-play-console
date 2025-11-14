@@ -29,17 +29,16 @@ jobs:
       - uses: google-github-actions/auth@v3
         id: google-auth
         with:
-          project_id: my-project
+          service_account: my-service-account@my-project.iam.gserviceaccount.com
           workload_identity_provider: projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider
       - uses: RageAgainstThePixel/upload-google-play-console@v1
         with:
-          service-account-credentials-path: ${{ steps.google-auth.outputs.credentials_file_path }}
-          release-directory: 'path/to/build/folder' # required, path to the build directory that contains the apks/aabs to upload
-          release-name: '1 (1.0.0)' # optional, defaults to reading manifest data (version code and version string).
-          release-notes: 'Initial release of my app.' # optional
-          track: 'internal' # optional, defaults to 'internal'
-          release-status: 'draft' # optional, defaults to 'draft'
-          github-token: ${{ secrets.GITHUB_TOKEN }} # Required.
+          service-account-credentials-path: ${{ steps.google-auth.outputs.credentials_file_path }} # Required if GOOGLE_APPLICATION_CREDENTIALS is not set in the environment
+          release-directory: path/to/build/folder # Required, path to the build directory that contains the apks/aabs to upload
+          release-name: 1 (1.0.0) # Optional, defaults to reading manifest data (version code and version string)
+          track: internal # Optional, defaults to 'internal'
+          release-status: draft # Optional, defaults to 'draft'
+          github-token: ${{ secrets.GITHUB_TOKEN }} # Required
 ```
 
 ### inputs
