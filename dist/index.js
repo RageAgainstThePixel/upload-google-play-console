@@ -59637,7 +59637,6 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         releases.forEach(release => {
             var _a;
             core.info(`  > ${release.name} [status: ${release.status}, version codes: ${(_a = release.versionCodes) === null || _a === void 0 ? void 0 : _a.join(', ')}]`);
-            release.status = 'halted';
         });
         const newRelease = {
             name: releaseName || (apkInfo || aabInfo).getReleaseName(),
@@ -59653,7 +59652,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             track: track,
             requestBody: {
                 track: track,
-                releases: releases
+                releases: [newRelease]
             }
         });
         if (!trackUpdateResponse.ok) {

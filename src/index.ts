@@ -244,7 +244,6 @@ const main = async () => {
         core.info(`Found ${releases.length} existing releases on track ${track}:`);
         releases.forEach(release => {
             core.info(`  > ${release.name} [status: ${release.status}, version codes: ${release.versionCodes?.join(', ')}]`);
-            release.status = 'halted';
         });
 
         const newRelease: TrackInfo = {
