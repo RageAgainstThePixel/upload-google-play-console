@@ -14,7 +14,7 @@ inputs:
     description: 'The track to upload the app to (e.g., internal, alpha, beta, production).'
     required: false
     default: 'internal'
-  release-status:
+  status:
     description: 'The status of the release (e.g., draft, inProgress, completed, halted).'
     required: false
     default: 'completed'

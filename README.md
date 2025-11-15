@@ -35,7 +35,7 @@ jobs:
           release-directory: path/to/build/folder # Required, path to the build directory that contains the apks/aabs to upload
           release-name: 1 (1.0.0) # Optional, defaults to reading manifest data (version code and version string)
           track: internal # Optional, defaults to 'internal'
-          release-status: completed # Optional, defaults to 'completed'
+          status: completed # Optional, defaults to 'completed'
           github-token: ${{ secrets.GITHUB_TOKEN }} # Required
 ```
 
@@ -47,7 +47,7 @@ jobs:
 | `release-directory` | The directory containing the APKs/AABs to upload. | true |
 | `release-name` | The name of the release. | Defaults to reading manifest data (version code and version string). |
 | `track` | The track to upload the app to (e.g., `internal`, `alpha`, `beta`, `production`). | Defaults to `internal`. |
-| `release-status` | The status of the release (e.g., `draft`, `inProgress`, `completed`, `halted`). | Defaults to `completed`. |
+| `status` | The status of the release (e.g., `draft`, `inProgress`, `completed`, `halted`). | Defaults to `completed`. |
 | `github-token` | GitHub token for authentication. Use either `secrets.GITHUB_TOKEN`, `github.token` or a personal access token. | true |
 
 ### Setup Google Cloud Authentication via Workload Identity Federation with a Service Account

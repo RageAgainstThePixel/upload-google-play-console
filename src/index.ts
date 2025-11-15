@@ -38,8 +38,7 @@ const main = async () => {
         const releaseDirectory = core.getInput('release-directory', { required: true });
         const releaseName = core.getInput('release-name');
         const track = core.getInput('track') || 'internal';
-        const releaseStatus = core.getInput('release-status') || 'completed';
-        const normalizedReleaseStatus = releaseStatus.toLowerCase();
+        const releaseStatus = (core.getInput('status') || 'completed').trim().toLowerCase();
 
         core.info(`Uploading release from directory: ${releaseDirectory}`);
 
@@ -239,20 +238,11 @@ const main = async () => {
             throw new Error(`Failed to get track info for track ${track}: ${getTrackResponse.statusText}`);
         }
 
-        const releases: TrackInfo[] = getTrackResponse.data.releases || [];
-
-        core.info(`Found ${releases.length} existing releases on track ${track}:`);
-        releases.forEach(release => {
-            core.info(`  > ${release.name} [status: ${release.status}, version codes: ${release.versionCodes?.join(', ')}]`);
-        });
-
         const newRelease: TrackInfo = {
             name: releaseName || (apkInfo || aabInfo)!.getReleaseName(),
             status: releaseStatus,
             versionCodes: [`${versionCode}`]
         };
-
-        releases.push(newRelease);
 
         core.info(`Updating track ${track} with new release ${newRelease.name} with status ${newRelease.status}...`);
         const trackUpdateResponse = await androidPublisherClient.edits.tracks.update({
