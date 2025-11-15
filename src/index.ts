@@ -263,7 +263,7 @@ const main = async () => {
             track: track,
             requestBody: {
                 track: track,
-                releases: releases
+                releases: [newRelease]
             }
         });
 
