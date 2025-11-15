@@ -59446,7 +59446,6 @@ const tc = __importStar(__nccwpck_require__(7784));
 const github = __importStar(__nccwpck_require__(5438));
 let octokit;
 const main = () => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
     try {
         const githubToken = core.getInput('github-token', { required: false }) || process.env.GITHUB_TOKEN;
         if (!githubToken) {
@@ -59468,6 +59467,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         const releaseName = core.getInput('release-name');
         const track = core.getInput('track') || 'internal';
         const releaseStatus = core.getInput('release-status') || 'completed';
+        const normalizedReleaseStatus = releaseStatus.toLowerCase();
         core.info(`Uploading release from directory: ${releaseDirectory}`);
         if (releaseName) {
             core.info(`Release name: ${releaseName}`);
@@ -59637,15 +59637,15 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         releases.forEach(release => {
             var _a;
             core.info(`  > ${release.name} [status: ${release.status}, version codes: ${(_a = release.versionCodes) === null || _a === void 0 ? void 0 : _a.join(', ')}]`);
+            release.status = 'halted';
         });
         const newRelease = {
             name: releaseName || (apkInfo || aabInfo).getReleaseName(),
             status: releaseStatus,
             versionCodes: [`${versionCode}`]
         };
-        core.info(`Adding new release to track ${track}: ${newRelease.name} [status: ${newRelease.status}, version codes: ${(_a = newRelease.versionCodes) === null || _a === void 0 ? void 0 : _a.join(', ')}]`);
         releases.push(newRelease);
-        core.info(`Updating track ${track}...`);
+        core.info(`Updating track ${track} with new release ${newRelease.name} with status ${newRelease.status}...`);
         const trackUpdateResponse = yield androidPublisherClient.edits.tracks.update({
             auth: auth,
             packageName: packageName,

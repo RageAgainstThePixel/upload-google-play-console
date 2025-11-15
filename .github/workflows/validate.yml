@@ -76,3 +76,4 @@ jobs:
         with:
           release-directory: ${{ steps.unity-setup.outputs.unity-project-path }}/Builds/Android
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          release-status: draft

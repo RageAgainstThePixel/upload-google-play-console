@@ -39,6 +39,7 @@ const main = async () => {
         const releaseName = core.getInput('release-name');
         const track = core.getInput('track') || 'internal';
         const releaseStatus = core.getInput('release-status') || 'completed';
+        const normalizedReleaseStatus = releaseStatus.toLowerCase();
 
         core.info(`Uploading release from directory: ${releaseDirectory}`);
 
@@ -243,6 +244,7 @@ const main = async () => {
         core.info(`Found ${releases.length} existing releases on track ${track}:`);
         releases.forEach(release => {
             core.info(`  > ${release.name} [status: ${release.status}, version codes: ${release.versionCodes?.join(', ')}]`);
+            release.status = 'halted';
         });
 
         const newRelease: TrackInfo = {
@@ -251,10 +253,9 @@ const main = async () => {
             versionCodes: [`${versionCode}`]
         };
 
-        core.info(`Adding new release to track ${track}: ${newRelease.name} [status: ${newRelease.status}, version codes: ${newRelease.versionCodes?.join(', ')}]`);
         releases.push(newRelease);
 
-        core.info(`Updating track ${track}...`);
+        core.info(`Updating track ${track} with new release ${newRelease.name} with status ${newRelease.status}...`);
         const trackUpdateResponse = await androidPublisherClient.edits.tracks.update({
             auth: auth,
             packageName: packageName,
