@@ -59468,16 +59468,17 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         const releaseDirectory = core.getInput('release-directory', { required: true });
         const releaseName = core.getInput('release-name');
         const track = core.getInput('track') || 'internal';
-        const releaseStatus = (core.getInput('status') || 'completed').trim().toLowerCase();
+        const releaseStatus = core.getInput('status') || 'completed';
         const userFractionInput = core.getInput('user-fraction');
         const inAppUpdatePriorityInput = core.getInput('inAppUpdatePriority');
         const metadataInput = core.getInput('metadata');
         const changesNotSentForReview = core.getInput('changesNotSentForReview') === 'true';
         core.info(`Uploading release from directory: ${releaseDirectory}`);
-        if (releaseName) {
+        if (releaseName)
             core.info(`Release name: ${releaseName}`);
-        }
         core.info(`Track: ${track}`);
+        if (!['completed', 'draft', 'inProgress', 'halted'].includes(releaseStatus))
+            throw new Error(`Invalid release status: ${releaseStatus}. Valid values are: completed, draft, inProgress, halted.`);
         core.info(`Release status: ${releaseStatus}`);
         let userFraction = undefined;
         if (userFractionInput) {
@@ -59529,7 +59530,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         if (releaseAssets.length === 0)
             throw new Error(`No release assets found in directory: ${releaseDirectory}`);
         core.info(`Found ${releaseAssets.length} release assets to upload:`);
-        releaseAssets.forEach(asset => core.info(`  > ${path.basename(asset)}`));
+        releaseAssets.forEach((asset) => core.info(`  > ${path.basename(asset)}`));
         let apkInfo = null;
         let aabInfo = null;
         const expansionFiles = [];
@@ -59739,8 +59740,9 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
                         editId: editId,
                         language: image.language,
                         imageType: image.type,
-                        requestBody: {
-                            image: fs.createReadStream(resolvedPath)
+                        media: {
+                            mimeType: 'application/octet-stream',
+                            body: fs.createReadStream(resolvedPath),
                         }
                     });
                     if (!imageUploadResponse.ok)
