@@ -19,6 +19,14 @@
         }
       ]
     },
+    "images": {
+      "description": "Standalone image assets that can be uploaded with the release.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/image"
+      }
+    },
     "releaseNotes": {
       "description": "Localized release notes following the LocalizedText structure used by the Android Publisher API.",
       "anyOf": [
@@ -61,24 +69,42 @@
       "type": "object",
       "properties": {
         "language": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "BCP-47 language tag (for example, en-US)."
         },
         "title": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "fullDescription": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "shortDescription": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "video": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "uri"
         },
         "images": {
-          "type": "array",
+          "type": [
+            "array",
+            "null"
+          ],
           "minItems": 1,
           "items": {
             "$ref": "#/definitions/image"
@@ -97,8 +123,18 @@
     "image": {
       "type": "object",
       "properties": {
+        "language": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "BCP-47 language tag (for example, en-US)."
+        },
         "type": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "One of the values defined by the Android Publisher `AppImageType` enum (see https://developers.google.com/android-publisher/api-ref/rest/v3/AppImageType).",
           "enum": [
             "phoneScreenshots",
@@ -108,15 +144,20 @@
             "wearScreenshots",
             "icon",
             "featureGraphic",
-            "tvBanner"
+            "tvBanner",
+            null
           ]
         },
         "path": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Relative or absolute path to the local image asset to upload."
         }
       },
       "required": [
+        "language",
         "type",
         "path"
       ],
@@ -126,11 +167,17 @@
       "type": "object",
       "properties": {
         "language": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "BCP-47 language tag (for example, en-US)."
         },
         "text": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [

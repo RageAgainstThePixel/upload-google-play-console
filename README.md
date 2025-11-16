@@ -61,10 +61,11 @@ jobs:
 
 ### Setup Google Cloud Authentication via Workload Identity Federation with a Service Account
 
-> Resources:
+> ***Additional Resources:***
 >
 > - [Android Publisher API Getting Started Guide](https://developers.google.com/android-publisher/getting_started)
 > - [Google-GitHub-Actions Auth Action Documentation](https://github.com/google-github-actions/auth#indirect-wif)
+>
 
 1. Create a Google Cloud Project
 1. Enable the [Google Play Android Developer API](https://console.cloud.google.com/apis/library/androidpublisher.googleapis.com) for your project in the Google Cloud Console
@@ -137,7 +138,12 @@ jobs:
 ### Metadata JSON structure
 
 The `metadata` input can be either a JSON string or a path to a JSON file that follows the schema defined in [`metadata.schema.json`](src/metadata.schema.json). You can load the schema into your editor or validator to get auto-complete, linting, and type safety for
-`listing`, `releaseNotes`, and `countryTargeting` entries.
+`listing`, `releaseNotes`, `countryTargeting`, and `images` objects.
+
+> [!TIP]
+> Each of the top level properties are optional. You can include only the sections you need or all of them.
+>
+> `listing` and `releaseNotes` both accept a single object ***or*** an array of objects, so you can target multiple locales in one file.
 
 At a high level the schema supports the following payloads:
 
@@ -145,13 +151,7 @@ At a high level the schema supports the following payloads:
   including `language`, `title`, `shortDescription`, `fullDescription`, optional `video`, and an `images` array.
 - `releaseNotes`: localized release notes following the [LocalizedText](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.tracks#localizedtext) structure.
 - `countryTargeting`: optional country targeting options with `countries` (ISO 3166-1 alpha-2 codes) and `includeRestOfWorld` flags.
-
-> [!TIP]
-> Each of the top level properties are optional. You can include only the sections you need or all of them.
-
-`listing` and `releaseNotes` both accept a single object ***or*** an array of objects, so you can target multiple locales in one file.
-
-The `images` array within a `listing` requires each entry to specify an `AppImageType` plus `path` to a local asset. This path must be a fully qualified absolute path to the image file.
+- `images`: one or more images to upload that follow the [Android Publisher Image resource](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.images) structure including `language`, `type`, and `path` to a local asset.
 
 The supported `AppImageType` values (from the [Android Publisher API](https://developers.google.com/android-publisher/api-ref/rest/v3/AppImageType)) are:
 
@@ -173,16 +173,6 @@ Example snippet that shows how the metadata payload might be composed:
     "title": "Space Explorer",
     "shortDescription": "Blast through the cosmos.",
     "fullDescription": "Space Explorer is a fast-paced shooter...",
-    "images": [
-      {
-        "type": "phoneScreenshots",
-        "path": "path/to/images/phone-1.png"
-      },
-      {
-        "type": "icon",
-        "path": "path/to/images/icon.png"
-      }
-    ]
   },
   "releaseNotes": [
     {
@@ -193,6 +183,18 @@ Example snippet that shows how the metadata payload might be composed:
   "countryTargeting": {
     "countries": ["US", "CA"],
     "includeRestOfWorld": false
-  }
+  },
+  "images": [
+    {
+      "language": "en-US",
+      "type": "phoneScreenshots",
+      "path": "path/to/images/phone-1.png"
+    },
+    {
+      "language": "en-US",
+      "type": "icon",
+      "path": "path/to/images/icon.png"
+    }
+  ]
 }
 ```
