@@ -61,15 +61,15 @@ jobs:
 | `status` | The status of the release. Must be one of `draft`, `inProgress`, `completed`, or `halted`. | Defaults to `completed`. |
 | `user-fraction` | Fraction of users who are eligible for a staged release. 0 < fraction < 1. Can only be set when status is `inProgress` or `halted`. | false |
 | `inAppUpdatePriority` | In-app update priority of the release. All newly added APKs in the release will be considered at this priority. Can take values in the range [0, 5], with 5 the highest priority. Defaults to 0. `inAppUpdatePriority` can not be updated once the release is rolled out. See <https://developer.android.com/guide/playcore/in-app-updates>. | false |
-| `metadata` | Json string or path to a JSON file that contains additional localized store listing metadata. [see Spec](#metadata-json-structure) | false |
-| `changesNotSentForReview` | When a rejection happens, the parameter will make sure that the changes in this edit won't be reviewed until they are explicitly sent for review from within the Google Play Console UI. These changes will be added to any other changes that are not yet sent for review. | false, defaults to `false` |
+| `metadata` | Json string or path to a JSON file that contains additional localized store listing metadata. [see Spec](#metadata-json-structure) | Defaults to `0`. |
+| `changesNotSentForReview` | When a rejection happens, the parameter will make sure that the changes in this edit won't be reviewed until they are explicitly sent for review from within the Google Play Console UI. These changes will be added to any other changes that are not yet sent for review. | Defaults to `false` |
 
 ### Setup Google Cloud Authentication via Workload Identity Federation with a Service Account
 
 > ***Additional Resources:***
 >
 > - [Android Publisher API Getting Started Guide](https://developers.google.com/android-publisher/getting_started)
-> - [Google-GitHub-Actions Auth Action Documentation](https://github.com/google-github-actions/auth#indirect-wif)
+> - [google-github-actions/auth Documentation](https://github.com/google-github-actions/auth#indirect-wif)
 >
 
 1. Create a Google Cloud Project
