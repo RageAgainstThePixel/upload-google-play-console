@@ -59470,7 +59470,9 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         const track = core.getInput('track') || 'internal';
         const releaseStatus = (core.getInput('status') || 'completed').trim().toLowerCase();
         const userFractionInput = core.getInput('user-fraction');
+        const inAppUpdatePriorityInput = core.getInput('inAppUpdatePriority');
         const metadataInput = core.getInput('metadata');
+        const changesNotSentForReview = core.getInput('changesNotSentForReview') === 'true';
         core.info(`Uploading release from directory: ${releaseDirectory}`);
         if (releaseName) {
             core.info(`Release name: ${releaseName}`);
@@ -59487,6 +59489,14 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             if (releaseStatus !== 'inProgress' && releaseStatus !== 'halted') {
                 core.warning(`user-fraction is only applicable for releases with status 'inProgress' or 'halted'. Current status is '${releaseStatus}'. Ignoring user-fraction.`);
                 userFraction = undefined;
+            }
+        }
+        let inAppUpdatePriority = undefined;
+        if (inAppUpdatePriorityInput) {
+            inAppUpdatePriority = parseInt(inAppUpdatePriorityInput, 10);
+            core.info(`In-app update priority: ${inAppUpdatePriority}`);
+            if (isNaN(inAppUpdatePriority) || inAppUpdatePriority < 0 || inAppUpdatePriority > 5) {
+                throw new Error(`Invalid inAppUpdatePriority value: ${inAppUpdatePriorityInput}. It must be an integer between 0 and 5.`);
             }
         }
         let metadata = null;
@@ -59680,6 +59690,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             userFraction: userFraction,
             releaseNotes: releaseNotes,
             countryTargeting: metadata === null || metadata === void 0 ? void 0 : metadata.countryTargeting,
+            inAppUpdatePriority: inAppUpdatePriority,
         };
         core.info(`Updating track ${track} with new release ${newRelease.name} with status ${newRelease.status}...`);
         const trackUpdateResponse = yield androidPublisherClient.edits.tracks.update({
@@ -59753,7 +59764,8 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         const commitResponse = yield androidPublisherClient.edits.commit({
             auth: auth,
             packageName: packageName,
-            editId: editId
+            editId: editId,
+            changesNotSentForReview: changesNotSentForReview
         });
         if (!commitResponse.ok)
             throw new Error(`Failed to commit edit: ${commitResponse.statusText}`);

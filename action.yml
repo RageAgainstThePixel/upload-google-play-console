@@ -24,9 +24,16 @@ inputs:
   user-fraction:
     description: Fraction of users who are eligible for a staged release. 0 < fraction < 1. Can only be set when status is `inProgress` or `halted`.
     required: false
+  inAppUpdatePriority:
+    description: In-app update priority of the release. All newly added APKs in the release will be considered at this priority. Can take values in the range [0, 5], with 5 the highest priority. Defaults to 0. `inAppUpdatePriority` can not be updated once the release is rolled out.
+    required: false
   metadata:
     description: Json string or path to a JSON file that contains additional localized store listing metadata to upload. See README for details.
     required: false
+  changesNotSentForReview:
+    description: When a rejection happens, the parameter will make sure that the changes in this edit won't be reviewed until they are explicitly sent for review from within the Google Play Console UI. These changes will be added to any other changes that are not yet sent for review.
+    required: false
+    default: 'false'
 runs:
   using: node20
   main: dist/index.js
