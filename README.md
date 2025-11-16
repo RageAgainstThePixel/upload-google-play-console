@@ -41,7 +41,8 @@ jobs:
           metadata: | # Optional, Json string or path to a JSON file that contains additional localized store listing metadata
             {
               "releaseNotes": {
-                "en-US": "Bug fixes and performance improvements."
+                "language": "en-US",
+                "text": "Bug fixes and performance improvements."
               }
             }
 ```
