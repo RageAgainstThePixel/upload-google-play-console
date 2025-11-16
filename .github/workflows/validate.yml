@@ -12,11 +12,17 @@ concurrency:
 jobs:
   build-and-publish:
     if: github.event.pull_request.draft == false
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     steps:
+      - name: Free Disk Space
+        uses: endersonmenezes/free-disk-space@713d134e243b926eba4a5cce0cf608bfd1efb89a # v2.1.1
+        with:
+          remove_android: true
+          remove_dotnet: false
+          remove_tool_cache: false
       - uses: actions/checkout@v5
       - uses: actions/checkout@v5
         with:
@@ -43,7 +49,7 @@ jobs:
           path: ${{ steps.unity-setup.outputs.unity-project-path }}/Library
           key: ${{ runner.os }}-unity-library-cache
           restore-keys: |
-            ${{ runner.os }}-unity-library-cache-
+            ${{ runner.os }}-unity-library-cache
       - name: Validate
         uses: RageAgainstThePixel/unity-action@v3
         with:
