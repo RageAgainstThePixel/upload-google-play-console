@@ -41,7 +41,7 @@ jobs:
         id: unity-library-cache-restore
         with:
           path: ${{ steps.unity-setup.outputs.unity-project-path }}/Library
-          key: ${{ runner.os }}-unity-library-cache-${{ hashFiles(format('{0}/Library/**', steps.unity-setup.outputs.unity-project-path)) }}
+          key: ${{ runner.os }}-unity-library-cache
           restore-keys: |
             ${{ runner.os }}-unity-library-cache-
       - name: Validate
@@ -61,7 +61,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ steps.unity-setup.outputs.unity-project-path }}/Library
-          key: ${{ runner.os }}-unity-library-cache-${{ hashFiles(format('{0}/Library/**', steps.unity-setup.outputs.unity-project-path)) }}
+          key: ${{ runner.os }}-unity-library-cache
       - uses: actions/setup-java@v5
         with:
           distribution: temurin

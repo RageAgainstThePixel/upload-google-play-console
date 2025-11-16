@@ -59436,14 +59436,14 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const google = __importStar(__nccwpck_require__(8159));
-const core = __importStar(__nccwpck_require__(2186));
-const glob = __importStar(__nccwpck_require__(8090));
-const io = __importStar(__nccwpck_require__(7436));
-const fs = __importStar(__nccwpck_require__(7147));
-const path = __importStar(__nccwpck_require__(1017));
-const exec_1 = __nccwpck_require__(1514);
 const tc = __importStar(__nccwpck_require__(7784));
 const github = __importStar(__nccwpck_require__(5438));
+const core = __importStar(__nccwpck_require__(2186));
+const glob = __importStar(__nccwpck_require__(8090));
+const exec_1 = __nccwpck_require__(1514);
+const io = __importStar(__nccwpck_require__(7436));
+const path = __importStar(__nccwpck_require__(1017));
+const fs = __importStar(__nccwpck_require__(7147));
 const package_info_1 = __nccwpck_require__(6592);
 let octokit;
 const main = () => __awaiter(void 0, void 0, void 0, function* () {
@@ -59508,18 +59508,16 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
                 }
             });
         }
-        if (items.length === 0) {
+        if (items.length === 0)
             throw new Error(`Release directory is empty: ${releaseDirectory}`);
-        }
         const basePattern = `${releaseDirectory}/`;
         const patterns = ['*.aab', '*.apk', '*.obb', '*.zip'];
         const globPattern = patterns.map(pattern => `${basePattern}${pattern}`).join('\n');
         core.debug(`Using glob pattern to find release assets:\n${globPattern}`);
         const globber = yield glob.create(globPattern);
         const releaseAssets = yield globber.glob();
-        if (releaseAssets.length === 0) {
+        if (releaseAssets.length === 0)
             throw new Error(`No release assets found in directory: ${releaseDirectory}`);
-        }
         core.info(`Found ${releaseAssets.length} release assets to upload:`);
         releaseAssets.forEach(asset => core.info(`  > ${path.basename(asset)}`));
         let apkInfo = null;
@@ -59529,15 +59527,13 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         let versionCode = null;
         for (const assetPath of releaseAssets) {
             if (assetPath.toLowerCase().endsWith('.apk')) {
-                if (apkInfo) {
+                if (apkInfo)
                     throw new Error(`Multiple APK files found in release assets. Only one APK is allowed per release when uploading APKs directly: ${apkInfo.filePath} and ${assetPath}`);
-                }
                 apkInfo = yield getPackageInfoApk(assetPath);
             }
             else if (assetPath.toLowerCase().endsWith('.aab')) {
-                if (aabInfo) {
+                if (aabInfo)
                     throw new Error(`Multiple AAB files found in release assets. Only one AAB is allowed per release: ${aabInfo.filePath} and ${assetPath}`);
-                }
                 aabInfo = yield getPackageInfoAab(assetPath);
             }
             else if (assetPath.toLowerCase().endsWith('.obb')) {
@@ -59547,21 +59543,18 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
                 symbolFiles.push(assetPath);
             }
         }
-        if (apkInfo && aabInfo) {
+        if (apkInfo && aabInfo)
             throw new Error('Cannot upload both APK and AAB files in the same release. Please choose one format.');
-        }
         const packageName = apkInfo ? apkInfo.packageName : aabInfo ? aabInfo.packageName : null;
-        if (!packageName) {
+        if (!packageName)
             throw new Error('Failed to determine package name from release assets.');
-        }
         core.info(`Inserting edit for package: ${packageName}...`);
         const insertResponse = yield androidPublisherClient.edits.insert({
             auth: auth,
             packageName: packageName
         });
-        if (!insertResponse.ok) {
+        if (!insertResponse.ok)
             throw new Error(`Failed to create edit: ${insertResponse.statusText}`);
-        }
         const editId = insertResponse.data.id;
         core.info(`Created edit: ${editId} for ${packageName}`);
         if (apkInfo) {
@@ -59576,12 +59569,10 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
                     body: fs.createReadStream(resolvedApkPath),
                 }
             });
-            if (!uploadApkResponse.ok) {
+            if (!uploadApkResponse.ok)
                 throw new Error(`Failed to upload APK ${apkInfo.filePath}: ${uploadApkResponse.statusText}`);
-            }
-            if (!uploadApkResponse.data.versionCode) {
+            if (!uploadApkResponse.data.versionCode)
                 throw new Error(`Failed to retrieve version code from uploaded APK ${apkInfo.filePath}.`);
-            }
             core.info(`Successfully uploaded APK with version code: ${uploadApkResponse.data.versionCode}`);
             versionCode = uploadApkResponse.data.versionCode;
             for (const obbPath of expansionFiles) {
@@ -59607,9 +59598,8 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
                             body: fs.createReadStream(obbPath),
                         }
                     });
-                    if (!expansionFileResponse.ok) {
+                    if (!expansionFileResponse.ok)
                         throw new Error(expansionFileResponse.statusText);
-                    }
                     core.info(`Successfully uploaded expansion file: [${expansionFileType}] ${obbPath}`);
                 }
                 catch (error) {
@@ -59628,18 +59618,15 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
                     body: fs.createReadStream(aabInfo.filePath),
                 }
             });
-            if (!uploadBundleResponse.ok) {
+            if (!uploadBundleResponse.ok)
                 throw new Error(`Failed to upload AAB ${aabInfo.filePath}: ${uploadBundleResponse.statusText}`);
-            }
-            if (!uploadBundleResponse.data.versionCode) {
+            if (!uploadBundleResponse.data.versionCode)
                 throw new Error(`Failed to retrieve version code from uploaded AAB ${aabInfo.filePath}.`);
-            }
             core.info(`Successfully uploaded AAB with version code: ${uploadBundleResponse.data.versionCode}`);
             versionCode = uploadBundleResponse.data.versionCode;
         }
-        if (!versionCode) {
+        if (!versionCode)
             throw new Error('Failed to determine version code from uploaded release asset.');
-        }
         for (const symbolPath of symbolFiles) {
             try {
                 core.info(`Uploading deobfuscation file: ${symbolPath}...`);
@@ -59654,9 +59641,8 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
                         body: fs.createReadStream(symbolPath),
                     }
                 });
-                if (!uploadDeobfuscationFileResponse.ok) {
+                if (!uploadDeobfuscationFileResponse.ok)
                     throw new Error(uploadDeobfuscationFileResponse.statusText);
-                }
                 core.info(`Successfully uploaded deobfuscation file: ${symbolPath}`);
             }
             catch (error) {
@@ -59668,13 +59654,11 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             packageName: packageName,
             editId: editId
         });
-        if (!tracksResponse.ok) {
+        if (!tracksResponse.ok)
             throw new Error(`Failed to list tracks: ${tracksResponse.statusText}`);
-        }
         const existingTrack = (_a = tracksResponse.data.tracks) === null || _a === void 0 ? void 0 : _a.find(t => t.track === track);
-        if (!existingTrack) {
+        if (!existingTrack)
             throw new Error(`Track does not exist: ${track}\nAvailable tracks:\n${(_b = tracksResponse.data.tracks) === null || _b === void 0 ? void 0 : _b.map(t => `  > ${t.track}`).join('\n')}`);
-        }
         core.info(`Getting track info for track: ${track}...`);
         const getTrackResponse = yield androidPublisherClient.edits.tracks.get({
             auth: auth,
@@ -59682,9 +59666,8 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             editId: editId,
             track: track
         });
-        if (!getTrackResponse.ok) {
+        if (!getTrackResponse.ok)
             throw new Error(`Failed to get track info for track ${track}: ${getTrackResponse.statusText}`);
-        }
         const releaseNotes = Array.isArray(metadata === null || metadata === void 0 ? void 0 : metadata.releaseNotes)
             ? metadata.releaseNotes
             : (metadata === null || metadata === void 0 ? void 0 : metadata.releaseNotes)
@@ -59709,9 +59692,8 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
                 releases: [newRelease]
             }
         });
-        if (!trackUpdateResponse.ok) {
+        if (!trackUpdateResponse.ok)
             throw new Error(`Failed to update track ${track}: ${trackUpdateResponse.statusText}`);
-        }
         if (metadata === null || metadata === void 0 ? void 0 : metadata.listing) {
             const listings = Array.isArray(metadata.listing)
                 ? metadata.listing
@@ -59726,9 +59708,8 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
                         language: listing.language,
                         requestBody: listing
                     });
-                    if (!updateListingResponse.ok) {
+                    if (!updateListingResponse.ok)
                         throw new Error(updateListingResponse.statusText);
-                    }
                     core.info(`Successfully updated listing for language: ${listing.language}`);
                 }
                 catch (error) {
@@ -59751,9 +59732,8 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
                             image: fs.createReadStream(resolvedPath)
                         }
                     });
-                    if (!imageUploadResponse.ok) {
+                    if (!imageUploadResponse.ok)
                         throw new Error(imageUploadResponse.statusText);
-                    }
                     core.info(`Successfully uploaded image for language: ${image.language}, type: ${image.type}`);
                 }
                 catch (error) {
@@ -59767,18 +59747,16 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             packageName: packageName,
             editId: editId
         });
-        if (!validateResponse.ok) {
+        if (!validateResponse.ok)
             throw new Error(`Failed to validate edit: ${validateResponse.statusText}`);
-        }
         core.info(`Committing edit...`);
         const commitResponse = yield androidPublisherClient.edits.commit({
             auth: auth,
             packageName: packageName,
             editId: editId
         });
-        if (!commitResponse.ok) {
+        if (!commitResponse.ok)
             throw new Error(`Failed to commit edit: ${commitResponse.statusText}`);
-        }
         core.info(`Successfully committed edit for package: ${packageName}`);
     }
     catch (error) {

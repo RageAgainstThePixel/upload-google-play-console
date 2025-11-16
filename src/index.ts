@@ -1,15 +1,17 @@
 import * as google from '@googleapis/androidpublisher';
-import * as core from '@actions/core';
-import * as glob from '@actions/glob';
-import * as io from '@actions/io';
-import * as fs from 'fs';
-import * as path from 'path';
-import { exec } from '@actions/exec';
 import * as tc from '@actions/tool-cache';
 import * as github from '@actions/github';
-import TrackInfo = google.androidpublisher_v3.Schema$TrackRelease;
+import * as core from '@actions/core';
+import * as glob from '@actions/glob';
+import { exec } from '@actions/exec';
+import * as io from '@actions/io';
+import * as path from 'path';
+import * as fs from 'fs';
+
 import { PackageInfo } from './package-info';
 import { Metadata } from './metadata';
+
+import TrackInfo = google.androidpublisher_v3.Schema$TrackRelease;
 
 let octokit: ReturnType<typeof github.getOctokit>;
 
@@ -94,9 +96,7 @@ const main = async () => {
             });
         }
 
-        if (items.length === 0) {
-            throw new Error(`Release directory is empty: ${releaseDirectory}`);
-        }
+        if (items.length === 0) throw new Error(`Release directory is empty: ${releaseDirectory}`);
 
         const basePattern = `${releaseDirectory}/`;
         const patterns = ['*.aab', '*.apk', '*.obb', '*.zip'];
@@ -105,9 +105,7 @@ const main = async () => {
         const globber = await glob.create(globPattern);
         const releaseAssets = await globber.glob();
 
-        if (releaseAssets.length === 0) {
-            throw new Error(`No release assets found in directory: ${releaseDirectory}`);
-        }
+        if (releaseAssets.length === 0) throw new Error(`No release assets found in directory: ${releaseDirectory}`);
 
         core.info(`Found ${releaseAssets.length} release assets to upload:`);
         releaseAssets.forEach(asset => core.info(`  > ${path.basename(asset)}`));
@@ -120,14 +118,10 @@ const main = async () => {
 
         for (const assetPath of releaseAssets) {
             if (assetPath.toLowerCase().endsWith('.apk')) {
-                if (apkInfo) {
-                    throw new Error(`Multiple APK files found in release assets. Only one APK is allowed per release when uploading APKs directly: ${apkInfo.filePath} and ${assetPath}`);
-                }
+                if (apkInfo) throw new Error(`Multiple APK files found in release assets. Only one APK is allowed per release when uploading APKs directly: ${apkInfo.filePath} and ${assetPath}`);
                 apkInfo = await getPackageInfoApk(assetPath);
             } else if (assetPath.toLowerCase().endsWith('.aab')) {
-                if (aabInfo) {
-                    throw new Error(`Multiple AAB files found in release assets. Only one AAB is allowed per release: ${aabInfo.filePath} and ${assetPath}`);
-                }
+                if (aabInfo) throw new Error(`Multiple AAB files found in release assets. Only one AAB is allowed per release: ${aabInfo.filePath} and ${assetPath}`);
                 aabInfo = await getPackageInfoAab(assetPath);
             } else if (assetPath.toLowerCase().endsWith('.obb')) {
                 expansionFiles.push(assetPath);
@@ -136,17 +130,13 @@ const main = async () => {
             }
         }
 
-        if (apkInfo && aabInfo) {
-            throw new Error('Cannot upload both APK and AAB files in the same release. Please choose one format.');
-        }
+        if (apkInfo && aabInfo) throw new Error('Cannot upload both APK and AAB files in the same release. Please choose one format.');
 
         //  At a high level, the expected workflow is to "insert" an Edit, make changes as necessary, and then "commit" it.
 
         const packageName = apkInfo ? apkInfo.packageName : aabInfo ? aabInfo.packageName : null;
 
-        if (!packageName) {
-            throw new Error('Failed to determine package name from release assets.');
-        }
+        if (!packageName) throw new Error('Failed to determine package name from release assets.');
 
         core.info(`Inserting edit for package: ${packageName}...`);
         const insertResponse = await androidPublisherClient.edits.insert({
@@ -154,9 +144,7 @@ const main = async () => {
             packageName: packageName
         });
 
-        if (!insertResponse.ok) {
-            throw new Error(`Failed to create edit: ${insertResponse.statusText}`);
-        }
+        if (!insertResponse.ok) throw new Error(`Failed to create edit: ${insertResponse.statusText}`);
 
         const editId = insertResponse.data.id;
         core.info(`Created edit: ${editId} for ${packageName}`);
@@ -174,14 +162,8 @@ const main = async () => {
                 }
             });
 
-            if (!uploadApkResponse.ok) {
-                throw new Error(`Failed to upload APK ${apkInfo.filePath}: ${uploadApkResponse.statusText}`);
-            }
-
-            if (!uploadApkResponse.data.versionCode) {
-                throw new Error(`Failed to retrieve version code from uploaded APK ${apkInfo.filePath}.`);
-            }
-
+            if (!uploadApkResponse.ok) throw new Error(`Failed to upload APK ${apkInfo.filePath}: ${uploadApkResponse.statusText}`);
+            if (!uploadApkResponse.data.versionCode) throw new Error(`Failed to retrieve version code from uploaded APK ${apkInfo.filePath}.`);
             core.info(`Successfully uploaded APK with version code: ${uploadApkResponse.data.versionCode}`);
             versionCode = uploadApkResponse.data.versionCode;
 
@@ -211,10 +193,7 @@ const main = async () => {
                         }
                     });
 
-                    if (!expansionFileResponse.ok) {
-                        throw new Error(expansionFileResponse.statusText);
-                    }
-
+                    if (!expansionFileResponse.ok) throw new Error(expansionFileResponse.statusText);
                     core.info(`Successfully uploaded expansion file: [${expansionFileType}] ${obbPath}`);
                 } catch (error) {
                     core.error(`Error uploading expansion file ${obbPath}: ${error}`);
@@ -234,21 +213,13 @@ const main = async () => {
                 }
             });
 
-            if (!uploadBundleResponse.ok) {
-                throw new Error(`Failed to upload AAB ${aabInfo.filePath}: ${uploadBundleResponse.statusText}`);
-            }
-
-            if (!uploadBundleResponse.data.versionCode) {
-                throw new Error(`Failed to retrieve version code from uploaded AAB ${aabInfo.filePath}.`);
-            }
-
+            if (!uploadBundleResponse.ok) throw new Error(`Failed to upload AAB ${aabInfo.filePath}: ${uploadBundleResponse.statusText}`);
+            if (!uploadBundleResponse.data.versionCode) throw new Error(`Failed to retrieve version code from uploaded AAB ${aabInfo.filePath}.`);
             core.info(`Successfully uploaded AAB with version code: ${uploadBundleResponse.data.versionCode}`);
             versionCode = uploadBundleResponse.data.versionCode;
         }
 
-        if (!versionCode) {
-            throw new Error('Failed to determine version code from uploaded release asset.');
-        }
+        if (!versionCode) throw new Error('Failed to determine version code from uploaded release asset.');
 
         for (const symbolPath of symbolFiles) {
             try {
@@ -265,10 +236,7 @@ const main = async () => {
                     }
                 });
 
-                if (!uploadDeobfuscationFileResponse.ok) {
-                    throw new Error(uploadDeobfuscationFileResponse.statusText);
-                }
-
+                if (!uploadDeobfuscationFileResponse.ok) throw new Error(uploadDeobfuscationFileResponse.statusText);
                 core.info(`Successfully uploaded deobfuscation file: ${symbolPath}`);
             } catch (error) {
                 core.error(`Error uploading deobfuscation file ${symbolPath}: ${error}`);
@@ -281,15 +249,10 @@ const main = async () => {
             editId: editId
         });
 
-        if (!tracksResponse.ok) {
-            throw new Error(`Failed to list tracks: ${tracksResponse.statusText}`);
-        }
+        if (!tracksResponse.ok) throw new Error(`Failed to list tracks: ${tracksResponse.statusText}`);
 
         const existingTrack = tracksResponse.data.tracks?.find(t => t.track === track);
-
-        if (!existingTrack) {
-            throw new Error(`Track does not exist: ${track}\nAvailable tracks:\n${tracksResponse.data.tracks?.map(t => `  > ${t.track}`).join('\n')}`);
-        }
+        if (!existingTrack) throw new Error(`Track does not exist: ${track}\nAvailable tracks:\n${tracksResponse.data.tracks?.map(t => `  > ${t.track}`).join('\n')}`);
 
         core.info(`Getting track info for track: ${track}...`);
         const getTrackResponse = await androidPublisherClient.edits.tracks.get({
@@ -299,9 +262,7 @@ const main = async () => {
             track: track
         });
 
-        if (!getTrackResponse.ok) {
-            throw new Error(`Failed to get track info for track ${track}: ${getTrackResponse.statusText}`);
-        }
+        if (!getTrackResponse.ok) throw new Error(`Failed to get track info for track ${track}: ${getTrackResponse.statusText}`);
 
         const releaseNotes = Array.isArray(metadata?.releaseNotes)
             ? metadata!.releaseNotes
@@ -330,9 +291,7 @@ const main = async () => {
             }
         });
 
-        if (!trackUpdateResponse.ok) {
-            throw new Error(`Failed to update track ${track}: ${trackUpdateResponse.statusText}`);
-        }
+        if (!trackUpdateResponse.ok) throw new Error(`Failed to update track ${track}: ${trackUpdateResponse.statusText}`);
 
         if (metadata?.listing) {
             const listings = Array.isArray(metadata.listing)
@@ -350,10 +309,7 @@ const main = async () => {
                         requestBody: listing
                     });
 
-                    if (!updateListingResponse.ok) {
-                        throw new Error(updateListingResponse.statusText);
-                    }
-
+                    if (!updateListingResponse.ok) throw new Error(updateListingResponse.statusText);
                     core.info(`Successfully updated listing for language: ${listing.language}`);
                 } catch (error) {
                     core.error(`Error updating listing for language ${listing.language}: ${error}`);
@@ -377,10 +333,7 @@ const main = async () => {
                         }
                     });
 
-                    if (!imageUploadResponse.ok) {
-                        throw new Error(imageUploadResponse.statusText);
-                    }
-
+                    if (!imageUploadResponse.ok) throw new Error(imageUploadResponse.statusText);
                     core.info(`Successfully uploaded image for language: ${image.language}, type: ${image.type}`);
                 } catch (error) {
                     core.error(`Error uploading image for language ${image.language}, type ${image.type}: ${error}`);
@@ -395,9 +348,7 @@ const main = async () => {
             editId: editId
         });
 
-        if (!validateResponse.ok) {
-            throw new Error(`Failed to validate edit: ${validateResponse.statusText}`);
-        }
+        if (!validateResponse.ok) throw new Error(`Failed to validate edit: ${validateResponse.statusText}`);
 
         core.info(`Committing edit...`);
         const commitResponse = await androidPublisherClient.edits.commit({
@@ -406,10 +357,7 @@ const main = async () => {
             editId: editId
         });
 
-        if (!commitResponse.ok) {
-            throw new Error(`Failed to commit edit: ${commitResponse.statusText}`);
-        }
-
+        if (!commitResponse.ok) throw new Error(`Failed to commit edit: ${commitResponse.statusText}`);
         core.info(`Successfully committed edit for package: ${packageName}`);
     } catch (error) {
         core.setFailed(error);
