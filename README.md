@@ -9,12 +9,12 @@ Specifically designed for [Unity Game Engine](https://unity.com) builds, but can
 > [!IMPORTANT]
 > You must also have manually uploaded an initial version of your app to the Google Play Console to create the app record before using this action.
 
-### workflow
-
 > [!TIP]
 > This example assumes you are using `google-github-actions/auth` to authenticate to [Google Cloud via Workload Identity Federation with a Service Account](#setup-google-cloud-authentication-via-workload-identity-federation-with-a-service-account). Adjust accordingly if you are using a different authentication method.
 >
 > It is possible to pass your own service account credentials file path via the `service-account-credentials` input or `GOOGLE_APPLICATION_CREDENTIALS` environment variable instead of using `google-github-actions/auth`.
+
+### workflow
 
 ```yaml
 jobs:
@@ -58,7 +58,7 @@ jobs:
 | `track` | The track to upload the app to (e.g., `internal`, `alpha`, `beta`, `production`). | Defaults to `internal`. |
 | `status` | The status of the release. Must be one of `draft`, `inProgress`, `completed`, or `halted`. | Defaults to `completed`. |
 | `user-fraction` | Fraction of users who are eligible for a staged release. 0 < fraction < 1. Can only be set when status is `inProgress` or `halted`. | false |
-| `metadata` | Json string or path to a JSON file that contains additional localized store listing metadata. | false |
+| `metadata` | Json string or path to a JSON file that contains additional localized store listing metadata. [see Spec](#metadata-json-structure) | false |
 
 ### Setup Google Cloud Authentication via Workload Identity Federation with a Service Account
 
