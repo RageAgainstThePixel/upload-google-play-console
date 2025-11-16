@@ -49,7 +49,7 @@ jobs:
           path: ${{ steps.unity-setup.outputs.unity-project-path }}/Library
           key: ${{ runner.os }}-unity-library-cache
           restore-keys: |
-            ${{ runner.os }}-unity-library-cache-
+            ${{ runner.os }}-unity-library-cache
       - name: Validate
         uses: RageAgainstThePixel/unity-action@v3
         with:
