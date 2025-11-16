@@ -59471,9 +59471,9 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         const track = core.getInput('track') || 'internal';
         const releaseStatus = core.getInput('status') || 'completed';
         const userFractionInput = core.getInput('user-fraction');
-        const inAppUpdatePriorityInput = core.getInput('inAppUpdatePriority');
+        const inAppUpdatePriorityInput = core.getInput('in-app-update-priority');
         const metadataInput = core.getInput('metadata');
-        const changesNotSentForReview = core.getInput('changesNotSentForReview') === 'true';
+        const changesNotSentForReview = core.getInput('changes-not-sent-for-review') === 'true';
         core.info(`Uploading release from directory: ${releaseDirectory}`);
         if (releaseName)
             core.info(`Release name: ${releaseName}`);
