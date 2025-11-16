@@ -359,259 +359,260 @@ const main = async () => {
                     core.error(`Error updating listing for language ${listing.language}: ${error}`);
                 }
             }
+        }
 
-            if (metadata?.images) {
-                for (const image of metadata.images) {
-                    try {
-                        core.info(`Uploading image for language: ${image.language}, type: ${image.type} from path: ${image.path}...`);
-                        const resolvedPath = resolvePath(image.path);
-                        const imageUploadResponse = await androidPublisherClient.edits.images.upload({
-                            auth: auth,
-                            packageName: packageName,
-                            editId: editId,
-                            language: image.language,
-                            imageType: image.type,
-                            requestBody: {
-                                image: fs.createReadStream(resolvedPath)
-                            }
-                        });
-
-                        if (!imageUploadResponse.ok) {
-                            throw new Error(imageUploadResponse.statusText);
+        if (metadata?.images) {
+            for (const image of metadata.images) {
+                try {
+                    core.info(`Uploading image for language: ${image.language}, type: ${image.type} from path: ${image.path}...`);
+                    const resolvedPath = resolvePath(image.path);
+                    const imageUploadResponse = await androidPublisherClient.edits.images.upload({
+                        auth: auth,
+                        packageName: packageName,
+                        editId: editId,
+                        language: image.language,
+                        imageType: image.type,
+                        requestBody: {
+                            image: fs.createReadStream(resolvedPath)
                         }
+                    });
 
-                        core.info(`Successfully uploaded image for language: ${image.language}, type: ${image.type}`);
-                    } catch (error) {
-                        core.error(`Error uploading image for language ${image.language}, type ${image.type}: ${error}`);
+                    if (!imageUploadResponse.ok) {
+                        throw new Error(imageUploadResponse.statusText);
                     }
+
+                    core.info(`Successfully uploaded image for language: ${image.language}, type: ${image.type}`);
+                } catch (error) {
+                    core.error(`Error uploading image for language ${image.language}, type ${image.type}: ${error}`);
                 }
             }
-
-            core.info(`Validating edit...`);
-            const validateResponse = await androidPublisherClient.edits.validate({
-                auth: auth,
-                packageName: packageName,
-                editId: editId
-            });
-
-            if (!validateResponse.ok) {
-                throw new Error(`Failed to validate edit: ${validateResponse.statusText}`);
-            }
-
-            core.info(`Committing edit...`);
-            const commitResponse = await androidPublisherClient.edits.commit({
-                auth: auth,
-                packageName: packageName,
-                editId: editId
-            });
-
-            if (!commitResponse.ok) {
-                throw new Error(`Failed to commit edit: ${commitResponse.statusText}`);
-            }
-
-            core.info(`Successfully committed edit for package: ${packageName}`);
-        } catch (error) {
-            core.setFailed(error);
         }
+
+        core.info(`Validating edit...`);
+        const validateResponse = await androidPublisherClient.edits.validate({
+            auth: auth,
+            packageName: packageName,
+            editId: editId
+        });
+
+        if (!validateResponse.ok) {
+            throw new Error(`Failed to validate edit: ${validateResponse.statusText}`);
+        }
+
+        core.info(`Committing edit...`);
+        const commitResponse = await androidPublisherClient.edits.commit({
+            auth: auth,
+            packageName: packageName,
+            editId: editId
+        });
+
+        if (!commitResponse.ok) {
+            throw new Error(`Failed to commit edit: ${commitResponse.statusText}`);
+        }
+
+        core.info(`Successfully committed edit for package: ${packageName}`);
+    } catch (error) {
+        core.setFailed(error);
     }
+}
 
 main();
 
-    function resolvePath(filePath: string): string {
-        const resolvedPath = path.resolve(filePath);
+function resolvePath(filePath: string): string {
+    const resolvedPath = path.resolve(filePath);
 
-        if (!fs.existsSync(resolvedPath)) {
-            throw new Error(`File does not exist at path: ${resolvedPath}`);
-        }
-
-        return resolvedPath;
+    if (!fs.existsSync(resolvedPath)) {
+        throw new Error(`File does not exist at path: ${resolvedPath}`);
     }
 
-    /**
-     * Get package name from APK using aapt badging <file>
-     * @param filePath
-     * @returns package name
-     */
-    async function getPackageInfoApk(filePath: string): Promise<PackageInfo> {
-        if (!filePath || filePath.trim().length === 0) {
-            throw new Error('File path is required to get package name from APK.');
-        }
+    return resolvedPath;
+}
 
-        if (!filePath.toLowerCase().endsWith('.apk')) {
-            throw new Error(`File is not an APK: ${filePath}`);
-        }
-
-        if (!fs.existsSync(filePath)) {
-            throw new Error(`File does not exist at path: ${filePath}`);
-        }
-
-        try {
-            const aaptPath = await io.which('aapt', true);
-            let output = '';
-            const result = await exec(aaptPath, ['dump', 'badging', filePath], {
-                listeners: {
-                    stdout: (data: Buffer) => {
-                        output += data.toString();
-                    }
-                },
-                ignoreReturnCode: true
-            });
-            if (result !== 0) {
-                throw new Error(`aapt exited with code ${result}\n${output}`);
-            }
-
-            const pkgMatch = output.match(/package=["']([^"']+)["']/);
-            const versionCodeMatch = output.match(/(?:android:)?versionCode=["']([^"']+)["']/);
-            const versionNameMatch = output.match(/(?:android:)?versionName=["']([^"']+)["']/);
-
-            if (pkgMatch && versionCodeMatch && versionNameMatch) {
-                return new PackageInfo(
-                    pkgMatch[1],
-                    versionNameMatch[1],
-                    versionCodeMatch[1],
-                    filePath
-                );
-            }
-        } catch (error) {
-            throw new Error(`Failed to get package name from APK: ${error}`);
-        }
-
-        throw new Error(`Package name not found in the manifest of the release asset: ${filePath}`);
+/**
+ * Get package name from APK using aapt badging <file>
+ * @param filePath
+ * @returns package name
+ */
+async function getPackageInfoApk(filePath: string): Promise<PackageInfo> {
+    if (!filePath || filePath.trim().length === 0) {
+        throw new Error('File path is required to get package name from APK.');
     }
 
-    /**
-     * Get package name from AAB using bundletool dump manifest --bundle <file>
-     * @param filePath
-     * @returns package name
-     */
-    async function getPackageInfoAab(filePath: string): Promise<PackageInfo> {
-        if (!filePath || filePath.trim().length === 0) {
-            throw new Error('File path is required to get package name from AAB.');
-        }
-
-        if (!filePath.toLowerCase().endsWith('.aab')) {
-            throw new Error(`File is not an AAB: ${filePath}`);
-        }
-
-        if (!fs.existsSync(filePath)) {
-            throw new Error(`File does not exist at path: ${filePath}`);
-        }
-
-        let bundletoolPath: string;
-
-        try {
-            bundletoolPath = await io.which('bundletool', true);
-        } catch {
-            await setupBundleTool();
-            bundletoolPath = await io.which('bundletool', true);
-        }
-
-        if (!bundletoolPath) {
-            throw new Error('Failed to locate bundletool!');
-        } else {
-            core.info(`bundletool:\n  > ${bundletoolPath}`);
-        }
-
-        try {
-            let output = '';
-            const result = await exec(bundletoolPath, ['dump', 'manifest', '--bundle', filePath], {
-                listeners: {
-                    stdout: (data: Buffer) => {
-                        output += data.toString();
-                    }
-                },
-                silent: !core.isDebug(),
-                ignoreReturnCode: true
-            });
-
-            if (result !== 0) {
-                throw new Error(`bundletool exited with code ${result}\n${output}`);
-            }
-
-            const pkgMatch = output.match(/package=["']([^"']+)["']/);
-            const versionCodeMatch = output.match(/(?:android:)?versionCode=["']([^"']+)["']/);
-            const versionNameMatch = output.match(/(?:android:)?versionName=["']([^"']+)["']/);
-
-            if (pkgMatch && versionCodeMatch && versionNameMatch) {
-                return new PackageInfo(
-                    pkgMatch[1],
-                    versionNameMatch[1],
-                    versionCodeMatch[1],
-                    filePath
-                );
-            }
-        } catch (error) {
-            throw new Error(`Failed to get package name from AAB: ${error}`);
-        }
-
-        throw new Error(`Package name not found in the manifest of the release asset: ${filePath}`);
+    if (!filePath.toLowerCase().endsWith('.apk')) {
+        throw new Error(`File is not an APK: ${filePath}`);
     }
 
-    async function setupBundleTool(): Promise<string> {
-        core.debug('Setting up bundletool...');
-        const javaPath = await io.which('java', false);
+    if (!fs.existsSync(filePath)) {
+        throw new Error(`File does not exist at path: ${filePath}`);
+    }
 
-        if (!javaPath) {
-            throw new Error(`bundletool requires Java to be installed. Use the 'actions/setup-java' action to install Java before this action.`);
+    try {
+        const aaptPath = await io.which('aapt', true);
+        let output = '';
+        const result = await exec(aaptPath, ['dump', 'badging', filePath], {
+            listeners: {
+                stdout: (data: Buffer) => {
+                    output += data.toString();
+                }
+            },
+            ignoreReturnCode: true
+        });
+        if (result !== 0) {
+            throw new Error(`aapt exited with code ${result}\n${output}`);
         }
 
-        const cachedTools = tc.findAllVersions('bundletool', process.arch);
+        const pkgMatch = output.match(/package=["']([^"']+)["']/);
+        const versionCodeMatch = output.match(/(?:android:)?versionCode=["']([^"']+)["']/);
+        const versionNameMatch = output.match(/(?:android:)?versionName=["']([^"']+)["']/);
 
-        if (cachedTools && cachedTools.length > 0) {
-            core.debug(`Found ${cachedTools.length} cached versions of bundletool for architecture: ${process.arch}`);
-            const latestVersion = cachedTools.sort().reverse()[0];
-            core.debug(`Using latest cached version: ${latestVersion}`);
-            const toolPath = tc.find('bundletool', latestVersion, process.arch);
-            core.debug(`Found cached bundletool v${latestVersion}-${process.arch} at ${toolPath}`);
-            core.addPath(toolPath);
-            return toolPath;
+        if (pkgMatch && versionCodeMatch && versionNameMatch) {
+            return new PackageInfo(
+                pkgMatch[1],
+                versionNameMatch[1],
+                versionCodeMatch[1],
+                filePath
+            );
         }
+    } catch (error) {
+        throw new Error(`Failed to get package name from APK: ${error}`);
+    }
 
-        const latestRelease = await octokit.rest.repos.getLatestRelease({
-            owner: 'google',
-            repo: 'bundletool',
+    throw new Error(`Package name not found in the manifest of the release asset: ${filePath}`);
+}
+
+/**
+ * Get package name from AAB using bundletool dump manifest --bundle <file>
+ * @param filePath
+ * @returns package name
+ */
+async function getPackageInfoAab(filePath: string): Promise<PackageInfo> {
+    if (!filePath || filePath.trim().length === 0) {
+        throw new Error('File path is required to get package name from AAB.');
+    }
+
+    if (!filePath.toLowerCase().endsWith('.aab')) {
+        throw new Error(`File is not an AAB: ${filePath}`);
+    }
+
+    if (!fs.existsSync(filePath)) {
+        throw new Error(`File does not exist at path: ${filePath}`);
+    }
+
+    let bundletoolPath: string;
+
+    try {
+        bundletoolPath = await io.which('bundletool', true);
+    } catch {
+        await setupBundleTool();
+        bundletoolPath = await io.which('bundletool', true);
+    }
+
+    if (!bundletoolPath) {
+        throw new Error('Failed to locate bundletool!');
+    } else {
+        core.info(`bundletool:\n  > ${bundletoolPath}`);
+    }
+
+    try {
+        let output = '';
+        const result = await exec(bundletoolPath, ['dump', 'manifest', '--bundle', filePath], {
+            listeners: {
+                stdout: (data: Buffer) => {
+                    output += data.toString();
+                }
+            },
+            silent: !core.isDebug(),
+            ignoreReturnCode: true
         });
 
-        if (latestRelease.status !== 200) {
-            throw new Error(`Failed to get latest bundletool release:\n${JSON.stringify(latestRelease, null, 2)}`);
+        if (result !== 0) {
+            throw new Error(`bundletool exited with code ${result}\n${output}`);
         }
 
-        core.debug(`google/bundletool latest release:\n${JSON.stringify(latestRelease.data, null, 2)}`);
+        const pkgMatch = output.match(/package=["']([^"']+)["']/);
+        const versionCodeMatch = output.match(/(?:android:)?versionCode=["']([^"']+)["']/);
+        const versionNameMatch = output.match(/(?:android:)?versionName=["']([^"']+)["']/);
 
-        // bundletool-all-<version>.jar which means any architecture
-        const jarFile = latestRelease.data?.assets?.find(asset => asset.name.endsWith('.jar'));
-
-        if (!jarFile) {
-            throw new Error(`Failed to find bundletool jar file in manifest release from ${latestRelease.data.url}`);
+        if (pkgMatch && versionCodeMatch && versionNameMatch) {
+            return new PackageInfo(
+                pkgMatch[1],
+                versionNameMatch[1],
+                versionCodeMatch[1],
+                filePath
+            );
         }
+    } catch (error) {
+        throw new Error(`Failed to get package name from AAB: ${error}`);
+    }
 
-        // create a shim script to run bundletool
-        const shimDir = `${process.env.RUNNER_TEMP}/.bundletool`;
-        await io.mkdirP(shimDir);
-        const shimPath = `${shimDir}/bundletool`;
-        const destPath = `${shimDir}/${jarFile.name}`;
+    throw new Error(`Package name not found in the manifest of the release asset: ${filePath}`);
+}
 
-        core.debug(`installing bundletool version: ${latestRelease.data.tag_name} from ${jarFile.browser_download_url} -> ${destPath}`);
+async function setupBundleTool(): Promise<string> {
+    core.debug('Setting up bundletool...');
+    const javaPath = await io.which('java', false);
 
-        const downloadPath = await tc.downloadTool(jarFile.browser_download_url, destPath);
+    if (!javaPath) {
+        throw new Error(`bundletool requires Java to be installed. Use the 'actions/setup-java' action to install Java before this action.`);
+    }
 
-        core.debug(`downloaded: ${downloadPath}`);
-        fs.accessSync(downloadPath, fs.constants.R_OK);
-        const stat = fs.statSync(downloadPath);
+    const cachedTools = tc.findAllVersions('bundletool', process.arch);
 
-        if (stat.size === 0) {
-            throw new Error(`Downloaded bundletool jar is empty: ${downloadPath}`);
-        }
-
-        // create a shim script to run bundletool with java
-        const shimContent = `#!/bin/bash\n"${javaPath}" -jar "${downloadPath}" "$@"`;
-        fs.writeFileSync(shimPath, shimContent, { mode: 0o755 });
-        fs.chmodSync(shimPath, 0o755);
-        core.debug(`Created bundletool shim at: ${shimPath}`);
-
-        // cache the tool
-        const toolPath = await tc.cacheDir(shimDir, 'bundletool', latestRelease.data.tag_name, process.arch);
-        core.debug(`Cached bundletool v${latestRelease.data.tag_name}-${process.arch}: ${toolPath}`);
+    if (cachedTools && cachedTools.length > 0) {
+        core.debug(`Found ${cachedTools.length} cached versions of bundletool for architecture: ${process.arch}`);
+        const latestVersion = cachedTools.sort().reverse()[0];
+        core.debug(`Using latest cached version: ${latestVersion}`);
+        const toolPath = tc.find('bundletool', latestVersion, process.arch);
+        core.debug(`Found cached bundletool v${latestVersion}-${process.arch} at ${toolPath}`);
         core.addPath(toolPath);
         return toolPath;
     }
+
+    const latestRelease = await octokit.rest.repos.getLatestRelease({
+        owner: 'google',
+        repo: 'bundletool',
+    });
+
+    if (latestRelease.status !== 200) {
+        throw new Error(`Failed to get latest bundletool release:\n${JSON.stringify(latestRelease, null, 2)}`);
+    }
+
+    core.debug(`google/bundletool latest release:\n${JSON.stringify(latestRelease.data, null, 2)}`);
+
+    // bundletool-all-<version>.jar which means any architecture
+    const jarFile = latestRelease.data?.assets?.find(asset => asset.name.endsWith('.jar'));
+
+    if (!jarFile) {
+        throw new Error(`Failed to find bundletool jar file in manifest release from ${latestRelease.data.url}`);
+    }
+
+    // create a shim script to run bundletool
+    const shimDir = `${process.env.RUNNER_TEMP}/.bundletool`;
+    await io.mkdirP(shimDir);
+    const shimPath = `${shimDir}/bundletool`;
+    const destPath = `${shimDir}/${jarFile.name}`;
+
+    core.debug(`installing bundletool version: ${latestRelease.data.tag_name} from ${jarFile.browser_download_url} -> ${destPath}`);
+
+    const downloadPath = await tc.downloadTool(jarFile.browser_download_url, destPath);
+
+    core.debug(`downloaded: ${downloadPath}`);
+    fs.accessSync(downloadPath, fs.constants.R_OK);
+    const stat = fs.statSync(downloadPath);
+
+    if (stat.size === 0) {
+        throw new Error(`Downloaded bundletool jar is empty: ${downloadPath}`);
+    }
+
+    // create a shim script to run bundletool with java
+    const shimContent = `#!/bin/bash\n"${javaPath}" -jar "${downloadPath}" "$@"`;
+    fs.writeFileSync(shimPath, shimContent, { mode: 0o755 });
+    fs.chmodSync(shimPath, 0o755);
+    core.debug(`Created bundletool shim at: ${shimPath}`);
+
+    // cache the tool
+    const toolPath = await tc.cacheDir(shimDir, 'bundletool', latestRelease.data.tag_name, process.arch);
+    core.debug(`Cached bundletool v${latestRelease.data.tag_name}-${process.arch}: ${toolPath}`);
+    core.addPath(toolPath);
+    return toolPath;
+}

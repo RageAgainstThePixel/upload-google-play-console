@@ -59469,6 +59469,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         const releaseName = core.getInput('release-name');
         const track = core.getInput('track') || 'internal';
         const releaseStatus = (core.getInput('status') || 'completed').trim().toLowerCase();
+        const userFractionInput = core.getInput('user-fraction');
         const metadataInput = core.getInput('metadata');
         core.info(`Uploading release from directory: ${releaseDirectory}`);
         if (releaseName) {
@@ -59476,6 +59477,18 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         }
         core.info(`Track: ${track}`);
         core.info(`Release status: ${releaseStatus}`);
+        let userFraction = undefined;
+        if (userFractionInput) {
+            userFraction = parseFloat(userFractionInput);
+            core.info(`User fraction: ${userFraction}`);
+            if (isNaN(userFraction) || userFraction < 0 || userFraction > 1) {
+                throw new Error(`Invalid user-fraction value: ${userFractionInput}. It must be a number between 0 and 1.`);
+            }
+            if (releaseStatus !== 'inProgress' && releaseStatus !== 'halted') {
+                core.warning(`user-fraction is only applicable for releases with status 'inProgress' or 'halted'. Current status is '${releaseStatus}'. Ignoring user-fraction.`);
+                userFraction = undefined;
+            }
+        }
         let metadata = null;
         if (metadataInput) {
             let metadataContent = metadataInput;
@@ -59516,9 +59529,15 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         let versionCode = null;
         for (const assetPath of releaseAssets) {
             if (assetPath.toLowerCase().endsWith('.apk')) {
+                if (apkInfo) {
+                    throw new Error(`Multiple APK files found in release assets. Only one APK is allowed per release when uploading APKs directly: ${apkInfo.filePath} and ${assetPath}`);
+                }
                 apkInfo = yield getPackageInfoApk(assetPath);
             }
             else if (assetPath.toLowerCase().endsWith('.aab')) {
+                if (aabInfo) {
+                    throw new Error(`Multiple AAB files found in release assets. Only one AAB is allowed per release: ${aabInfo.filePath} and ${assetPath}`);
+                }
                 aabInfo = yield getPackageInfoAab(assetPath);
             }
             else if (assetPath.toLowerCase().endsWith('.obb')) {
@@ -59547,17 +59566,18 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         core.info(`Created edit: ${editId} for ${packageName}`);
         if (apkInfo) {
             core.info(`Uploading APK: ${apkInfo.filePath}...`);
+            const resolvedApkPath = resolvePath(apkInfo.filePath);
             const uploadApkResponse = yield androidPublisherClient.edits.apks.upload({
                 auth: auth,
                 editId: editId,
                 packageName: apkInfo.packageName,
                 media: {
                     mimeType: 'application/octet-stream',
-                    body: fs.createReadStream(apkInfo.filePath),
+                    body: fs.createReadStream(resolvedApkPath),
                 }
             });
             if (!uploadApkResponse.ok) {
-                throw new Error(`Failed to upload APK: ${uploadApkResponse.statusText}`);
+                throw new Error(`Failed to upload APK ${apkInfo.filePath}: ${uploadApkResponse.statusText}`);
             }
             if (!uploadApkResponse.data.versionCode) {
                 throw new Error(`Failed to retrieve version code from uploaded APK ${apkInfo.filePath}.`);
@@ -59565,29 +59585,35 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             core.info(`Successfully uploaded APK with version code: ${uploadApkResponse.data.versionCode}`);
             versionCode = uploadApkResponse.data.versionCode;
             for (const obbPath of expansionFiles) {
-                const expansionFileType = obbPath.toLowerCase().includes('main')
-                    ? 'main'
-                    : obbPath.toLowerCase().includes('patch')
-                        ? 'patch'
-                        : null;
-                if (!expansionFileType) {
-                    core.error(`Skipping OBB expansion file as it is neither prefixed with main nor patch: ${obbPath}`);
-                    continue;
-                }
-                core.info(`Uploading expansion file: ${obbPath}...`);
-                const expansionFileResponse = yield androidPublisherClient.edits.expansionfiles.upload({
-                    auth: auth,
-                    editId: editId,
-                    packageName: packageName,
-                    apkVersionCode: uploadApkResponse.data.versionCode,
-                    expansionFileType: expansionFileType,
-                    media: {
-                        mimeType: 'application/octet-stream',
-                        body: fs.createReadStream(obbPath),
+                try {
+                    const expansionFileType = obbPath.toLowerCase().includes('main')
+                        ? 'main'
+                        : obbPath.toLowerCase().includes('patch')
+                            ? 'patch'
+                            : null;
+                    if (!expansionFileType) {
+                        core.error(`Skipping OBB expansion file as it is neither prefixed with main nor patch: ${obbPath}`);
+                        continue;
                     }
-                });
-                if (!expansionFileResponse.ok) {
-                    core.error(`Failed to upload expansion file (${expansionFileType}): ${expansionFileResponse.statusText}`);
+                    core.info(`Uploading expansion file: [${expansionFileType}] ${obbPath}...`);
+                    const expansionFileResponse = yield androidPublisherClient.edits.expansionfiles.upload({
+                        auth: auth,
+                        editId: editId,
+                        packageName: packageName,
+                        apkVersionCode: uploadApkResponse.data.versionCode,
+                        expansionFileType: expansionFileType,
+                        media: {
+                            mimeType: 'application/octet-stream',
+                            body: fs.createReadStream(obbPath),
+                        }
+                    });
+                    if (!expansionFileResponse.ok) {
+                        throw new Error(expansionFileResponse.statusText);
+                    }
+                    core.info(`Successfully uploaded expansion file: [${expansionFileType}] ${obbPath}`);
+                }
+                catch (error) {
+                    core.error(`Error uploading expansion file ${obbPath}: ${error}`);
                 }
             }
         }
@@ -59603,7 +59629,7 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
                 }
             });
             if (!uploadBundleResponse.ok) {
-                throw new Error(`Failed to upload AAB: ${uploadBundleResponse.statusText}`);
+                throw new Error(`Failed to upload AAB ${aabInfo.filePath}: ${uploadBundleResponse.statusText}`);
             }
             if (!uploadBundleResponse.data.versionCode) {
                 throw new Error(`Failed to retrieve version code from uploaded AAB ${aabInfo.filePath}.`);
@@ -59615,23 +59641,26 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
             throw new Error('Failed to determine version code from uploaded release asset.');
         }
         for (const symbolPath of symbolFiles) {
-            core.info(`Uploading deobfuscation file: ${symbolPath}...`);
-            const uploadDeobfuscationFileResponse = yield androidPublisherClient.edits.deobfuscationfiles.upload({
-                auth: auth,
-                editId: editId,
-                packageName: packageName,
-                apkVersionCode: versionCode,
-                deobfuscationFileType: symbolPath.toLowerCase().endsWith('.zip') ? 'nativeCode' : 'proguard',
-                media: {
-                    mimeType: 'application/octet-stream',
-                    body: fs.createReadStream(symbolPath),
+            try {
+                core.info(`Uploading deobfuscation file: ${symbolPath}...`);
+                const uploadDeobfuscationFileResponse = yield androidPublisherClient.edits.deobfuscationfiles.upload({
+                    auth: auth,
+                    editId: editId,
+                    packageName: packageName,
+                    apkVersionCode: versionCode,
+                    deobfuscationFileType: symbolPath.toLowerCase().endsWith('.zip') ? 'nativeCode' : 'proguard',
+                    media: {
+                        mimeType: 'application/octet-stream',
+                        body: fs.createReadStream(symbolPath),
+                    }
+                });
+                if (!uploadDeobfuscationFileResponse.ok) {
+                    throw new Error(uploadDeobfuscationFileResponse.statusText);
                 }
-            });
-            if (!uploadDeobfuscationFileResponse.ok) {
-                core.error(`Failed to upload deobfuscation file: ${uploadDeobfuscationFileResponse.statusText}`);
-            }
-            else {
                 core.info(`Successfully uploaded deobfuscation file: ${symbolPath}`);
+            }
+            catch (error) {
+                core.error(`Error uploading deobfuscation file ${symbolPath}: ${error}`);
             }
         }
         const tracksResponse = yield androidPublisherClient.edits.tracks.list({
@@ -59656,10 +59685,18 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         if (!getTrackResponse.ok) {
             throw new Error(`Failed to get track info for track ${track}: ${getTrackResponse.statusText}`);
         }
+        const releaseNotes = Array.isArray(metadata === null || metadata === void 0 ? void 0 : metadata.releaseNotes)
+            ? metadata.releaseNotes
+            : (metadata === null || metadata === void 0 ? void 0 : metadata.releaseNotes)
+                ? [metadata.releaseNotes]
+                : undefined;
         const newRelease = {
             name: releaseName || (apkInfo || aabInfo).getReleaseName(),
             status: releaseStatus,
-            versionCodes: [`${versionCode}`]
+            versionCodes: [`${versionCode}`],
+            userFraction: userFraction,
+            releaseNotes: releaseNotes,
+            countryTargeting: metadata === null || metadata === void 0 ? void 0 : metadata.countryTargeting,
         };
         core.info(`Updating track ${track} with new release ${newRelease.name} with status ${newRelease.status}...`);
         const trackUpdateResponse = yield androidPublisherClient.edits.tracks.update({
@@ -59674,6 +59711,55 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
         });
         if (!trackUpdateResponse.ok) {
             throw new Error(`Failed to update track ${track}: ${trackUpdateResponse.statusText}`);
+        }
+        if (metadata === null || metadata === void 0 ? void 0 : metadata.listing) {
+            const listings = Array.isArray(metadata.listing)
+                ? metadata.listing
+                : [metadata.listing];
+            for (const listing of listings) {
+                try {
+                    core.info(`Updating listing for language: ${listing.language}...`);
+                    const updateListingResponse = yield androidPublisherClient.edits.listings.update({
+                        auth: auth,
+                        packageName: packageName,
+                        editId: editId,
+                        language: listing.language,
+                        requestBody: listing
+                    });
+                    if (!updateListingResponse.ok) {
+                        throw new Error(updateListingResponse.statusText);
+                    }
+                    core.info(`Successfully updated listing for language: ${listing.language}`);
+                }
+                catch (error) {
+                    core.error(`Error updating listing for language ${listing.language}: ${error}`);
+                }
+            }
+        }
+        if (metadata === null || metadata === void 0 ? void 0 : metadata.images) {
+            for (const image of metadata.images) {
+                try {
+                    core.info(`Uploading image for language: ${image.language}, type: ${image.type} from path: ${image.path}...`);
+                    const resolvedPath = resolvePath(image.path);
+                    const imageUploadResponse = yield androidPublisherClient.edits.images.upload({
+                        auth: auth,
+                        packageName: packageName,
+                        editId: editId,
+                        language: image.language,
+                        imageType: image.type,
+                        requestBody: {
+                            image: fs.createReadStream(resolvedPath)
+                        }
+                    });
+                    if (!imageUploadResponse.ok) {
+                        throw new Error(imageUploadResponse.statusText);
+                    }
+                    core.info(`Successfully uploaded image for language: ${image.language}, type: ${image.type}`);
+                }
+                catch (error) {
+                    core.error(`Error uploading image for language ${image.language}, type ${image.type}: ${error}`);
+                }
+            }
         }
         core.info(`Validating edit...`);
         const validateResponse = yield androidPublisherClient.edits.validate({
@@ -59700,6 +59786,13 @@ const main = () => __awaiter(void 0, void 0, void 0, function* () {
     }
 });
 main();
+function resolvePath(filePath) {
+    const resolvedPath = path.resolve(filePath);
+    if (!fs.existsSync(resolvedPath)) {
+        throw new Error(`File does not exist at path: ${resolvedPath}`);
+    }
+    return resolvedPath;
+}
 function getPackageInfoApk(filePath) {
     return __awaiter(this, void 0, void 0, function* () {
         if (!filePath || filePath.trim().length === 0) {
