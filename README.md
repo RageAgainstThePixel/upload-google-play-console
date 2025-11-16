@@ -14,6 +14,11 @@ Specifically designed for [Unity Game Engine](https://unity.com) builds, but can
 >
 > It is possible to pass your own service account credentials file path via the `service-account-credentials` input or `GOOGLE_APPLICATION_CREDENTIALS` environment variable instead of using `google-github-actions/auth`.
 
+> [!WARNING]
+> This action requires Java 21 or higher to run. Make sure to set up Java in your workflow before using this action.
+>
+> You can use the [actions/setup-java](https://github.com/actions/setup-java) action to set up Java.
+
 ### workflow
 
 ```yaml
@@ -29,6 +34,10 @@ jobs:
         with:
           service_account: my-service-account@my-project.iam.gserviceaccount.com
           workload_identity_provider: projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
       - uses: RageAgainstThePixel/upload-google-play-console@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }} # Required
