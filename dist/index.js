@@ -59444,6 +59444,7 @@ const exec_1 = __nccwpck_require__(1514);
 const io = __importStar(__nccwpck_require__(7436));
 const path = __importStar(__nccwpck_require__(1017));
 const fs = __importStar(__nccwpck_require__(7147));
+const os = __importStar(__nccwpck_require__(2037));
 const package_info_1 = __nccwpck_require__(6592);
 let octokit;
 const main = () => __awaiter(void 0, void 0, void 0, function* () {
@@ -59796,8 +59797,20 @@ function getPackageInfoApk(filePath) {
         if (!fs.existsSync(filePath)) {
             throw new Error(`File does not exist at path: ${filePath}`);
         }
+        let aaptPath;
         try {
-            const aaptPath = yield io.which('aapt', true);
+            aaptPath = yield io.which('aapt2', true);
+        }
+        catch (_a) {
+            aaptPath = yield getAaptPath();
+        }
+        if (!aaptPath) {
+            throw new Error('Failed to locate aapt2!');
+        }
+        else {
+            core.info(`aapt2:\n  > ${aaptPath}`);
+        }
+        try {
             let output = '';
             const result = yield (0, exec_1.exec)(aaptPath, ['dump', 'badging', filePath], {
                 listeners: {
@@ -59808,7 +59821,7 @@ function getPackageInfoApk(filePath) {
                 ignoreReturnCode: true
             });
             if (result !== 0) {
-                throw new Error(`aapt exited with code ${result}\n${output}`);
+                throw new Error(`${aaptPath} exited with code ${result}\n${output}`);
             }
             const pkgMatch = output.match(/package=["']([^"']+)["']/);
             const versionCodeMatch = output.match(/(?:android:)?versionCode=["']([^"']+)["']/);
@@ -59821,6 +59834,41 @@ function getPackageInfoApk(filePath) {
             throw new Error(`Failed to get package name from APK: ${error}`);
         }
         throw new Error(`Package name not found in the manifest of the release asset: ${filePath}`);
+    });
+}
+function getAaptPath() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const androidSdkRoot = process.env.ANDROID_SDK_ROOT || process.env.ANDROID_HOME;
+        if (!androidSdkRoot) {
+            throw new Error(`ANDROID_SDK_ROOT or ANDROID_HOME environment variable is not set. Cannot locate aapt tool.`);
+        }
+        const buildToolsDir = path.join(androidSdkRoot, 'build-tools');
+        if (!fs.existsSync(buildToolsDir)) {
+            throw new Error(`Build-tools directory does not exist at path: ${buildToolsDir}`);
+        }
+        const versions = fs.readdirSync(buildToolsDir).filter(dir => {
+            const fullPath = path.join(buildToolsDir, dir);
+            return fs.statSync(fullPath).isDirectory();
+        });
+        if (versions.length === 0) {
+            throw new Error(`No build-tools versions found in directory: ${buildToolsDir}`);
+        }
+        versions.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+        const latestVersion = versions[0];
+        const latestDir = path.join(buildToolsDir, latestVersion);
+        const binaryNames = process.platform === 'win32'
+            ? ['aapt2.exe', 'aapt.exe']
+            : ['aapt2', 'aapt'];
+        const searchDirs = [latestDir, path.join(latestDir, 'lib')];
+        for (const candidate of binaryNames) {
+            for (const dir of searchDirs) {
+                const candidatePath = path.join(dir, candidate);
+                if (fs.existsSync(candidatePath)) {
+                    return candidatePath;
+                }
+            }
+        }
+        throw new Error(`Could not find aapt or aapt2 in ${latestDir}. Ensure Android build-tools are installed.`);
     });
 }
 function getPackageInfoAab(filePath) {
@@ -59877,7 +59925,7 @@ function getPackageInfoAab(filePath) {
 }
 function setupBundleTool() {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b;
+        var _a, _b, _c;
         core.debug('Setting up bundletool...');
         const javaPath = yield io.which('java', false);
         if (!javaPath) {
@@ -59905,10 +59953,13 @@ function setupBundleTool() {
         if (!jarFile) {
             throw new Error(`Failed to find bundletool jar file in manifest release from ${latestRelease.data.url}`);
         }
-        const shimDir = `${process.env.RUNNER_TEMP}/.bundletool`;
+        const tempDir = (_c = process.env.RUNNER_TEMP) !== null && _c !== void 0 ? _c : os.tmpdir();
+        const shimDir = path.join(tempDir, '.bundletool');
         yield io.mkdirP(shimDir);
-        const shimPath = `${shimDir}/bundletool`;
-        const destPath = `${shimDir}/${jarFile.name}`;
+        const isWindows = process.platform === 'win32';
+        const shimFilename = isWindows ? 'bundletool.cmd' : 'bundletool';
+        const shimPath = path.join(shimDir, shimFilename);
+        const destPath = path.join(shimDir, jarFile.name);
         core.debug(`installing bundletool version: ${latestRelease.data.tag_name} from ${jarFile.browser_download_url} -> ${destPath}`);
         const downloadPath = yield tc.downloadTool(jarFile.browser_download_url, destPath);
         core.debug(`downloaded: ${downloadPath}`);
@@ -59917,9 +59968,13 @@ function setupBundleTool() {
         if (stat.size === 0) {
             throw new Error(`Downloaded bundletool jar is empty: ${downloadPath}`);
         }
-        const shimContent = `#!/bin/bash\n"${javaPath}" -jar "${downloadPath}" "$@"`;
-        fs.writeFileSync(shimPath, shimContent, { mode: 0o755 });
-        fs.chmodSync(shimPath, 0o755);
+        const shimContent = isWindows
+            ? `@echo off\r\n"${javaPath}" -jar "${downloadPath}" %*\r\n`
+            : `#!/bin/bash\n"${javaPath}" -jar "${downloadPath}" "$@"`;
+        fs.writeFileSync(shimPath, shimContent, isWindows ? undefined : { mode: 0o755 });
+        if (!isWindows) {
+            fs.chmodSync(shimPath, 0o755);
+        }
         core.debug(`Created bundletool shim at: ${shimPath}`);
         const toolPath = yield tc.cacheDir(shimDir, 'bundletool', latestRelease.data.tag_name, process.arch);
         core.debug(`Cached bundletool v${latestRelease.data.tag_name}-${process.arch}: ${toolPath}`);

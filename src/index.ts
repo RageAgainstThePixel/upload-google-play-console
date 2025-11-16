@@ -7,6 +7,7 @@ import { exec } from '@actions/exec';
 import * as io from '@actions/io';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 
 import { PackageInfo } from './package-info';
 import { Metadata } from './metadata';
@@ -390,7 +391,7 @@ function resolvePath(filePath: string): string {
 }
 
 /**
- * Get package name from APK using aapt badging <file>
+ * Get package name from APK using aapt2 badging <file>
  * @param filePath
  * @returns package name
  */
@@ -407,8 +408,21 @@ async function getPackageInfoApk(filePath: string): Promise<PackageInfo> {
         throw new Error(`File does not exist at path: ${filePath}`);
     }
 
+    let aaptPath: string;
+
     try {
-        const aaptPath = await io.which('aapt', true);
+        aaptPath = await io.which('aapt2', true);
+    } catch {
+        aaptPath = await getAaptPath();
+    }
+
+    if (!aaptPath) {
+        throw new Error('Failed to locate aapt2!');
+    } else {
+        core.info(`aapt2:\n  > ${aaptPath}`);
+    }
+
+    try {
         let output = '';
         const result = await exec(aaptPath, ['dump', 'badging', filePath], {
             listeners: {
@@ -419,7 +433,7 @@ async function getPackageInfoApk(filePath: string): Promise<PackageInfo> {
             ignoreReturnCode: true
         });
         if (result !== 0) {
-            throw new Error(`aapt exited with code ${result}\n${output}`);
+            throw new Error(`${aaptPath} exited with code ${result}\n${output}`);
         }
 
         const pkgMatch = output.match(/package=["']([^"']+)["']/);
@@ -439,6 +453,48 @@ async function getPackageInfoApk(filePath: string): Promise<PackageInfo> {
     }
 
     throw new Error(`Package name not found in the manifest of the release asset: ${filePath}`);
+}
+
+async function getAaptPath(): Promise<string> {
+    const androidSdkRoot = process.env.ANDROID_SDK_ROOT || process.env.ANDROID_HOME;
+    if (!androidSdkRoot) {
+        throw new Error(`ANDROID_SDK_ROOT or ANDROID_HOME environment variable is not set. Cannot locate aapt tool.`);
+    }
+
+    const buildToolsDir = path.join(androidSdkRoot, 'build-tools');
+
+    if (!fs.existsSync(buildToolsDir)) {
+        throw new Error(`Build-tools directory does not exist at path: ${buildToolsDir}`);
+    }
+
+    const versions = fs.readdirSync(buildToolsDir).filter(dir => {
+        const fullPath = path.join(buildToolsDir, dir);
+        return fs.statSync(fullPath).isDirectory();
+    });
+
+    if (versions.length === 0) {
+        throw new Error(`No build-tools versions found in directory: ${buildToolsDir}`);
+    }
+
+    // Sort versions in descending order to get the latest version
+    versions.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+    const latestVersion = versions[0];
+    const latestDir = path.join(buildToolsDir, latestVersion);
+    const binaryNames = process.platform === 'win32'
+        ? ['aapt2.exe', 'aapt.exe']
+        : ['aapt2', 'aapt'];
+    const searchDirs = [latestDir, path.join(latestDir, 'lib')];
+
+    for (const candidate of binaryNames) {
+        for (const dir of searchDirs) {
+            const candidatePath = path.join(dir, candidate);
+            if (fs.existsSync(candidatePath)) {
+                return candidatePath;
+            }
+        }
+    }
+
+    throw new Error(`Could not find aapt or aapt2 in ${latestDir}. Ensure Android build-tools are installed.`);
 }
 
 /**
@@ -548,10 +604,13 @@ async function setupBundleTool(): Promise<string> {
     }
 
     // create a shim script to run bundletool
-    const shimDir = `${process.env.RUNNER_TEMP}/.bundletool`;
+    const tempDir = process.env.RUNNER_TEMP ?? os.tmpdir();
+    const shimDir = path.join(tempDir, '.bundletool');
     await io.mkdirP(shimDir);
-    const shimPath = `${shimDir}/bundletool`;
-    const destPath = `${shimDir}/${jarFile.name}`;
+    const isWindows = process.platform === 'win32';
+    const shimFilename = isWindows ? 'bundletool.cmd' : 'bundletool';
+    const shimPath = path.join(shimDir, shimFilename);
+    const destPath = path.join(shimDir, jarFile.name);
 
     core.debug(`installing bundletool version: ${latestRelease.data.tag_name} from ${jarFile.browser_download_url} -> ${destPath}`);
 
@@ -566,9 +625,15 @@ async function setupBundleTool(): Promise<string> {
     }
 
     // create a shim script to run bundletool with java
-    const shimContent = `#!/bin/bash\n"${javaPath}" -jar "${downloadPath}" "$@"`;
-    fs.writeFileSync(shimPath, shimContent, { mode: 0o755 });
-    fs.chmodSync(shimPath, 0o755);
+    const shimContent = isWindows
+        ? `@echo off\r\n"${javaPath}" -jar "${downloadPath}" %*\r\n`
+        : `#!/bin/bash\n"${javaPath}" -jar "${downloadPath}" "$@"`;
+    fs.writeFileSync(shimPath, shimContent, isWindows ? undefined : { mode: 0o755 });
+
+    if (!isWindows) {
+        fs.chmodSync(shimPath, 0o755);
+    }
+
     core.debug(`Created bundletool shim at: ${shimPath}`);
 
     // cache the tool
