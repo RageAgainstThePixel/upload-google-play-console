@@ -1,6 +1,6 @@
 # upload-google-play-console
 
-A Github action to upload to google play console.
+A Github action to upload abb/apk and build metadata artifacts to the Google Play Console.
 
 Specifically designed for [Unity Game Engine](https://unity.com) builds, but can be used for any Android app.
 

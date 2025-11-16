@@ -1,5 +1,8 @@
 name: upload-google-play-console
-description: A Github action to upload to google play console.
+description: A Github action to upload abb/apk and build metadata artifacts to the Google Play Console
+branding:
+  color: blue
+  icon: upload-cloud
 inputs:
   github-token:
     description: GitHub token for authentication. Use either `secrets.GITHUB_TOKEN`, `github.token` or a personal access token.
