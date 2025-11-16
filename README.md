@@ -157,17 +157,15 @@ At a high level the schema supports the following payloads:
 - `releaseNotes`: localized release notes following the [LocalizedText](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.tracks#localizedtext) structure.
 - `countryTargeting`: optional country targeting options with `countries` (ISO 3166-1 alpha-2 codes) and `includeRestOfWorld` flags.
 - `images`: one or more images to upload that follow the [Android Publisher Image resource](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.images) structure including `language`, `type`, and `path` to a local asset.
-
-The supported `AppImageType` values (from the [Android Publisher API](https://developers.google.com/android-publisher/api-ref/rest/v3/AppImageType)) are:
-
-- `phoneScreenshots`
-- `sevenInchScreenshots`
-- `tenInchScreenshots`
-- `tvScreenshots`
-- `wearScreenshots`
-- `icon`
-- `featureGraphic`
-- `tvBanner`
+  - The supported `type` values (from the [Android Publisher API](https://developers.google.com/android-publisher/api-ref/rest/v3/AppImageType)) are:
+    - `phoneScreenshots`
+    - `sevenInchScreenshots`
+    - `tenInchScreenshots`
+    - `tvScreenshots`
+    - `wearScreenshots`
+    - `icon`
+    - `featureGraphic`
+    - `tvBanner`
 
 Example snippet that shows how the metadata payload might be composed:
 
