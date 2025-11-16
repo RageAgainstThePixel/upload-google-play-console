@@ -1,22 +1,79 @@
-name: validate
+name: Build and Publish Unity App
 on:
   push:
     branches: ['main']
   pull_request:
-    branches: ['*']
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: ['**']
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{(github.event_name == 'pull_request' || github.event.action == 'synchronize')}}
 jobs:
-  validate:
-    runs-on: ${{ matrix.os }}
+  build-and-publish:
+    if: github.event.pull_request.draft == false
+    runs-on: macos-latest
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - run: echo "hello world"
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: RageAgainstThePixel/com.utilities.websockets
+          ref: dev/test-android-publishing
+          path: ${{ github.workspace }}/unity-project/
+      - uses: RageAgainstThePixel/unity-setup@v2
+        id: unity-setup
+        timeout-minutes: 30
+        with:
+          hub-version: 3.12.0
+          unity-version: 6000
+          build-targets: Android
+          version-file: ${{ github.workspace }}/unity-project/Utilities.Websockets/ProjectSettings/ProjectVersion.txt
+      - uses: RageAgainstThePixel/activate-unity-license@v2
+        with:
+          license: Personal
+          username: ${{ secrets.UNITY_USERNAME }}
+          password: ${{ secrets.UNITY_PASSWORD }}
+      - name: Unity Library Cache Restore
+        uses: actions/cache/restore@v4
+        id: unity-library-cache-restore
+        with:
+          path: ${{ steps.unity-setup.outputs.unity-project-path }}/Library
+          key: ${{ runner.os }}-unity-library-cache
+          restore-keys: |
+            ${{ runner.os }}-unity-library-cache-
+      - name: Validate
+        uses: RageAgainstThePixel/unity-action@v3
+        with:
+          log-name: Validate
+          build-target: Android
+          args: -quit -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.ValidateProject -importTMProEssentialsAsset
+      - name: Build
+        uses: RageAgainstThePixel/unity-action@v3
+        timeout-minutes: 30
+        with:
+          log-name: Build
+          build-target: Android
+          args: -quit -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -appBundle -symbols debugging -versionCode ${{ github.run_number }}${{ github.run_attempt }} -keyaliasPass ${{ secrets.APK_SIGNING_PASSWORD }} -keystorePass ${{ secrets.APK_SIGNING_PASSWORD }}
+      - name: Unity Library Cache Save
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.unity-setup.outputs.unity-project-path }}/Library
+          key: ${{ runner.os }}-unity-library-cache
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: google-github-actions/auth@v3
+        id: auth
+        with:
+          service_account: unity-build-tests@unity-build-tests.iam.gserviceaccount.com
+          workload_identity_provider: projects/1076244883472/locations/global/workloadIdentityPools/github/providers/upload-google-play-console
+      - name: Upload Build Artifact
+        uses: ./ # RageAgainstThePixel/upload-google-play-console
+        with:
+          release-directory: ${{ steps.unity-setup.outputs.unity-project-path }}/Builds/Android
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          status: completed
