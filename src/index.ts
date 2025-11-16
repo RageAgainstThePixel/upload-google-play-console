@@ -8,20 +8,22 @@ import { exec } from '@actions/exec';
 import * as tc from '@actions/tool-cache';
 import * as github from '@actions/github';
 import TrackInfo = google.androidpublisher_v3.Schema$TrackRelease;
+import { PackageInfo } from './package-info';
+import { Metadata } from './metadata';
 
 let octokit: ReturnType<typeof github.getOctokit>;
 
 const main = async () => {
     try {
-        const githubToken = core.getInput('github-token', { required: false }) || process.env.GITHUB_TOKEN;
+        const githubToken = core.getInput('github-token', { required: true });
 
-        if (!githubToken) {
-            throw new Error('A GitHub token is required. Please provide it via the "github-token" input or set the GITHUB_TOKEN environment variable.');
+        if (!githubToken || githubToken.trim().length === 0) {
+            throw new Error('A github-token is required!');
         }
 
         octokit = github.getOctokit(githubToken);
 
-        const credentialsPath = core.getInput('service-account-credentials-path');
+        const credentialsPath = core.getInput('service-account-credentials');
 
         if (!credentialsPath && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
             throw new Error('Missing service account credentials. Please provide the path to the service account JSON file or set the GOOGLE_APPLICATION_CREDENTIALS environment variable.');
@@ -39,6 +41,7 @@ const main = async () => {
         const releaseName = core.getInput('release-name');
         const track = core.getInput('track') || 'internal';
         const releaseStatus = (core.getInput('status') || 'completed').trim().toLowerCase();
+        const metadataInput = core.getInput('metadata');
 
         core.info(`Uploading release from directory: ${releaseDirectory}`);
 
@@ -48,6 +51,20 @@ const main = async () => {
 
         core.info(`Track: ${track}`);
         core.info(`Release status: ${releaseStatus}`);
+
+        let metadata: Metadata | null = null;
+
+        if (metadataInput) {
+            let metadataContent: string = metadataInput;
+
+            if (metadataInput.endsWith('.json') && fs.existsSync(metadataInput)) {
+                core.debug(`Loading metadata from file: ${metadataInput}`);
+                metadataContent = fs.readFileSync(metadataInput, 'utf-8');
+            }
+
+            metadata = JSON.parse(metadataContent) as Metadata;
+            core.info(`Metadata:\n${JSON.stringify(metadata, null, 2)}`);
+        }
 
         const items = fs.readdirSync(releaseDirectory);
 
@@ -226,6 +243,22 @@ const main = async () => {
             }
         }
 
+        const tracksResponse = await androidPublisherClient.edits.tracks.list({
+            auth: auth,
+            packageName: packageName,
+            editId: editId
+        });
+
+        if (!tracksResponse.ok) {
+            throw new Error(`Failed to list tracks: ${tracksResponse.statusText}`);
+        }
+
+        const existingTrack = tracksResponse.data.tracks?.find(t => t.track === track);
+
+        if (!existingTrack) {
+            throw new Error(`Track does not exist: ${track}\nAvailable tracks:\n${tracksResponse.data.tracks?.map(t => `  > ${t.track}`).join('\n')}`);
+        }
+
         core.info(`Getting track info for track: ${track}...`);
         const getTrackResponse = await androidPublisherClient.edits.tracks.get({
             auth: auth,
@@ -289,23 +322,6 @@ const main = async () => {
 }
 
 main();
-
-class PackageInfo {
-    constructor(
-        readonly packageName: string,
-        readonly versionName: string,
-        readonly versionCode: string,
-        readonly filePath: string) {
-    }
-
-    /**
-     * Get release name in format: versionCode (versionName)
-     * @returns release name
-     */
-    public getReleaseName(): string {
-        return `${this.versionCode} (${this.versionName})`;
-    }
-}
 
 /**
  * Get package name from APK using aapt badging <file>

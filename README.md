@@ -14,7 +14,7 @@ Specifically designed for [Unity Game Engine](https://unity.com) builds, but can
 > [!TIP]
 > This example assumes you are using `google-github-actions/auth` to authenticate to [Google Cloud via Workload Identity Federation with a Service Account](#setup-google-cloud-authentication-via-workload-identity-federation-with-a-service-account). Adjust accordingly if you are using a different authentication method.
 >
-> It is possible to pass your own service account credentials file path via the `service-account-credentials-path` input or `GOOGLE_APPLICATION_CREDENTIALS` environment variable instead of using `google-github-actions/auth`.
+> It is possible to pass your own service account credentials file path via the `service-account-credentials` input or `GOOGLE_APPLICATION_CREDENTIALS` environment variable instead of using `google-github-actions/auth`.
 
 ```yaml
 jobs:
@@ -31,24 +31,33 @@ jobs:
           workload_identity_provider: projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider
       - uses: RageAgainstThePixel/upload-google-play-console@v1
         with:
-          service-account-credentials-path: ${{ steps.google-auth.outputs.credentials_file_path }} # Required if GOOGLE_APPLICATION_CREDENTIALS is not set in the environment
+          github-token: ${{ secrets.GITHUB_TOKEN }} # Required
+          service-account-credentials: ${{ steps.google-auth.outputs.credentials_file_path }} # Required if GOOGLE_APPLICATION_CREDENTIALS is not set in the environment
           release-directory: path/to/build/folder # Required, path to the build directory that contains the apks/aabs to upload
           release-name: 1 (1.0.0) # Optional, defaults to reading manifest data (version code and version string)
           track: internal # Optional, defaults to 'internal'
-          status: completed # Optional, defaults to 'completed'
-          github-token: ${{ secrets.GITHUB_TOKEN }} # Required
+          status: completed # Optional, Must be one of `draft`, `inProgress`, `completed`, or `halted`.
+          user-fraction: 0.1 # Optional, Fraction of users who are eligible for a staged release. 0 < fraction < 1. Can only be set when status is `inProgress` or `halted`.
+          metadata: | # Optional, Json string or path to a JSON file that contains additional localized store listing metadata
+            {
+              "releaseNotes": {
+                "en-US": "Bug fixes and performance improvements."
+              }
+            }
 ```
 
 ### inputs
 
 | name | description | required |
 | ---- | ----------- | -------- |
-| `service-account-credentials-path` | The service account credentials file path. | Required if GOOGLE_APPLICATION_CREDENTIALS is not set in the environment. |
+| `github-token` | GitHub token for authentication. Use either `secrets.GITHUB_TOKEN`, `github.token` or a personal access token. | true |
+| `service-account-credentials` | The service account credentials file path. | Required if GOOGLE_APPLICATION_CREDENTIALS is not set in the environment. |
 | `release-directory` | The directory containing the APKs/AABs to upload. | true |
 | `release-name` | The name of the release. | Defaults to reading manifest data (version code and version string). |
 | `track` | The track to upload the app to (e.g., `internal`, `alpha`, `beta`, `production`). | Defaults to `internal`. |
-| `status` | The status of the release (e.g., `draft`, `inProgress`, `completed`, `halted`). | Defaults to `completed`. |
-| `github-token` | GitHub token for authentication. Use either `secrets.GITHUB_TOKEN`, `github.token` or a personal access token. | true |
+| `status` | The status of the release. Must be one of `draft`, `inProgress`, `completed`, or `halted`. | Defaults to `completed`. |
+| `user-fraction` | Fraction of users who are eligible for a staged release. 0 < fraction < 1. Can only be set when status is `inProgress` or `halted`. | false |
+| `metadata` | Json string or path to a JSON file that contains additional localized store listing metadata. | false |
 
 ### Setup Google Cloud Authentication via Workload Identity Federation with a Service Account
 
@@ -124,3 +133,66 @@ jobs:
     10. Click ***Invite User***
 
 1. Add `id-token: write` permission to your workflow job so that the `google-github-actions/auth` action can mint identity tokens
+
+### Metadata JSON structure
+
+The `metadata` input can be either a JSON string or a path to a JSON file that follows the schema defined in [`metadata.schema.json`](src/metadata.schema.json). You can load the schema into your editor or validator to get auto-complete, linting, and type safety for
+`listing`, `releaseNotes`, and `countryTargeting` entries.
+
+At a high level the schema supports the following payloads:
+
+- `listing`: one or more localized store listings. Each listing describes the metadata fields that mirror the [Android Publisher Listing resource](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.listings)
+  including `language`, `title`, `shortDescription`, `fullDescription`, optional `video`, and an `images` array.
+- `releaseNotes`: localized release notes following the [LocalizedText](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.tracks#localizedtext) structure.
+- `countryTargeting`: optional country targeting options with `countries` (ISO 3166-1 alpha-2 codes) and `includeRestOfWorld` flags.
+
+> [!TIP]
+> Each of the top level properties are optional. You can include only the sections you need or all of them.
+
+`listing` and `releaseNotes` both accept a single object ***or*** an array of objects, so you can target multiple locales in one file.
+
+The `images` array within a `listing` requires each entry to specify an `AppImageType` plus `path` to a local asset. This path must be a fully qualified absolute path to the image file.
+
+The supported `AppImageType` values (from the [Android Publisher API](https://developers.google.com/android-publisher/api-ref/rest/v3/AppImageType)) are:
+
+- `phoneScreenshots`
+- `sevenInchScreenshots`
+- `tenInchScreenshots`
+- `tvScreenshots`
+- `wearScreenshots`
+- `icon`
+- `featureGraphic`
+- `tvBanner`
+
+Example snippet that shows how the metadata payload might be composed:
+
+```json
+{
+  "listing": {
+    "language": "en-US",
+    "title": "Space Explorer",
+    "shortDescription": "Blast through the cosmos.",
+    "fullDescription": "Space Explorer is a fast-paced shooter...",
+    "images": [
+      {
+        "type": "phoneScreenshots",
+        "path": "path/to/images/phone-1.png"
+      },
+      {
+        "type": "icon",
+        "path": "path/to/images/icon.png"
+      }
+    ]
+  },
+  "releaseNotes": [
+    {
+      "language": "en-US",
+      "text": "Bug fixes and polish."
+    }
+  ],
+  "countryTargeting": {
+    "countries": ["US", "CA"],
+    "includeRestOfWorld": false
+  }
+}
+```
