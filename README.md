@@ -83,6 +83,7 @@ jobs:
 
 1. Create a Google Cloud Project
 1. Enable the [Google Play Android Developer API](https://console.cloud.google.com/apis/library/androidpublisher.googleapis.com) for your project in the Google Cloud Console
+1. Enable the [IAM Service Account Credentials API](https://console.cloud.google.com/apis/library/iamcredentials.googleapis.com) for your project in the Google Cloud Console
 1. Configure [GitHub authentication to Google Cloud via a Workload Identity Federation through a Service Account](https://github.com/google-github-actions/auth#indirect-wif)
     1. Create or take note of an existing Google Cloud Service Account
 
