@@ -59898,17 +59898,23 @@ function getPackageInfoAab(filePath) {
         }
         try {
             let output = '';
-            const result = yield (0, exec_1.exec)(bundletoolPath, ['dump', 'manifest', '--bundle', filePath], {
+            let errorOutput = '';
+            const args = ['dump', 'manifest', '--bundle', filePath, '--module', 'base'];
+            const result = yield (0, exec_1.exec)(bundletoolPath, args, {
                 listeners: {
                     stdout: (data) => {
                         output += data.toString();
+                    },
+                    stderr: (data) => {
+                        errorOutput += data.toString();
                     }
                 },
                 silent: !core.isDebug(),
                 ignoreReturnCode: true
             });
             if (result !== 0) {
-                throw new Error(`bundletool exited with code ${result}\n${output}`);
+                const diagnostic = [output.trim(), errorOutput.trim()].filter(message => message.length > 0).join('\n');
+                throw new Error(`bundletool exited with code ${result}${diagnostic ? `\n${diagnostic}` : ''}`);
             }
             const pkgMatch = output.match(/package=["']([^"']+)["']/);
             const versionCodeMatch = output.match(/(?:android:)?versionCode=["']([^"']+)["']/);
@@ -59968,9 +59974,21 @@ function setupBundleTool() {
         if (stat.size === 0) {
             throw new Error(`Downloaded bundletool jar is empty: ${downloadPath}`);
         }
+        const jarFileName = jarFile.name;
         const shimContent = isWindows
-            ? `@echo off\r\n"${javaPath}" -jar "${downloadPath}" %*\r\n`
-            : `#!/bin/bash\n"${javaPath}" -jar "${downloadPath}" "$@"`;
+            ? [
+                '@echo off',
+                'setlocal enabledelayedexpansion',
+                'set "SCRIPT_DIR=%~dp0"',
+                `"${javaPath}" -jar "%SCRIPT_DIR%${jarFileName}" %*`,
+                ''
+            ].join('\r\n')
+            : [
+                '#!/bin/bash',
+                'set -euo pipefail',
+                'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
+                `"${javaPath}" -jar "${'$'}{SCRIPT_DIR}/${jarFileName}" "$@"`
+            ].join('\n');
         fs.writeFileSync(shimPath, shimContent, isWindows ? undefined : { mode: 0o755 });
         if (!isWindows) {
             fs.chmodSync(shimPath, 0o755);
