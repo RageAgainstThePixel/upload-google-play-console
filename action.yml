@@ -7,6 +7,7 @@ inputs:
   github-token:
     description: GitHub token for authentication. Use either `secrets.GITHUB_TOKEN`, `github.token` or a personal access token.
     required: true
+    default: ${{ github.token }}
   service-account-credentials:
     description: The service account credentials file path. Required if GOOGLE_APPLICATION_CREDENTIALS is not set in the environment.
     required: false

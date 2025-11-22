@@ -81,5 +81,4 @@ jobs:
         uses: ./ # RageAgainstThePixel/upload-google-play-console
         with:
           release-directory: ${{ steps.unity-setup.outputs.unity-project-path }}/Builds/Android
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           status: completed
