@@ -1,6 +1,6 @@
 {
   "name": "upload-google-play-console",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A Github action to upload abb/apk and build metadata artifacts to the Google Play Console",
   "author": "RageAgainstThePixel",
   "license": "MIT",
