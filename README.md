@@ -144,9 +144,12 @@ jobs:
     7. Go to the [Users & Permissions](https://play.google.com/console/users-and-permissions) page on the Google Play Console.
     8. Click ***Invite new users***
     9. Put an email address for your service account in the email address field
-        1. Grant the service account ***Release Manager*** permissions
+        1. Grant the service account permissions to the apps you want them to manage
+        1. Grant the service account ***Draft Apps*** permissions
+        1. Grant the service account all ***Releases*** permissions
         1. Add additional permissions as needed
-    10. Click ***Invite User***
+        1. Add 
+    11. Click ***Invite User***
 
 1. Add `id-token: write` permission to your workflow job so that the `google-github-actions/auth` action can mint identity tokens
 
