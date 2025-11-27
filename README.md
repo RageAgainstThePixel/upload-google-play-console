@@ -148,7 +148,6 @@ jobs:
         1. Grant the service account ***Draft Apps*** permissions
         1. Grant the service account all ***Releases*** permissions
         1. Add additional permissions as needed
-        1. Add 
     11. Click ***Invite User***
 
 1. Add `id-token: write` permission to your workflow job so that the `google-github-actions/auth` action can mint identity tokens
