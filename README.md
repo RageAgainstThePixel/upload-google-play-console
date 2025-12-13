@@ -123,6 +123,7 @@ jobs:
     ```
 
     > [!NOTE]
+    >
     > GITHUB_REPOSITORY is in the format `owner/repo`, e.g. `octocat/hello-world`.
 
     5. Allow authentications from the Workload Identity Pool to your Google Cloud Service Account
@@ -135,6 +136,7 @@ jobs:
     ```
 
     > [!NOTE]
+    >
     > GITHUB_REPOSITORY is in the format `owner/repo`, e.g. `octocat/hello-world`.
 
     6. Extract the Workload Identity Provider resource name
