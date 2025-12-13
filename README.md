@@ -122,6 +122,9 @@ jobs:
       --issuer-uri="https://token.actions.githubusercontent.com"
     ```
 
+    > [!NOTE]
+    > GITHUB_REPOSITORY is in the format `owner/repo`, e.g. `octocat/hello-world`.
+
     5. Allow authentications from the Workload Identity Pool to your Google Cloud Service Account
 
     ```bash
@@ -130,6 +133,9 @@ jobs:
       --role="roles/iam.workloadIdentityUser" \
       --member="principalSet://iam.googleapis.com/${WORKLOAD_IDENTITY_POOL_FULL_ID}/attribute.repository/${GITHUB_REPOSITORY}"
     ```
+
+    > [!NOTE]
+    > GITHUB_REPOSITORY is in the format `owner/repo`, e.g. `octocat/hello-world`.
 
     6. Extract the Workload Identity Provider resource name
 
