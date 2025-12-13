@@ -112,7 +112,7 @@ jobs:
     4. Create a Workload Identity Provider in the Pool
 
 > [!NOTE]
-> GITHUB_REPOSITORY is in the format `owner/repo`, e.g. `octocat/hello-world`.
+> `GITHUB_REPOSITORY` is in the format `owner/repo`, e.g. `octocat/hello-world`.
 
     ```bash
     gcloud iam workload-identity-pools providers create-oidc "${PROVIDER_NAME}" \
@@ -128,7 +128,7 @@ jobs:
     5. Allow authentications from the Workload Identity Pool to your Google Cloud Service Account
 
 > [!NOTE]
-> GITHUB_REPOSITORY is in the format `owner/repo`, e.g. `octocat/hello-world`.
+> `GITHUB_REPOSITORY` is in the format `owner/repo`, e.g. `octocat/hello-world`.
 
     ```bash
     gcloud iam service-accounts add-iam-policy-binding "${SERVICE_ACCOUNT_EMAIL}" \
