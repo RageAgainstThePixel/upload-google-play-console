@@ -62,7 +62,7 @@ jobs:
         with:
           log-name: Build
           build-target: Android
-          args: -quit -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -appBundle -symbols debugging -versionCode ${{ github.run_number }}${{ github.run_attempt }} -keyaliasPass ${{ secrets.APK_SIGNING_PASSWORD }} -keystorePass ${{ secrets.APK_SIGNING_PASSWORD }}
+          args: -quit -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -appBundle -symbols debugging -versionCode ${{ github.run_number }}${{ github.run_attempt }} ${{ vars.PLAY_UPLOAD_ENABLED == 'true' && format('-keyaliasPass {0} -keystorePass {0}', secrets.APK_SIGNING_PASSWORD) || '' }}
       - name: Unity Library Cache Save
         uses: actions/cache/save@v6
         with:
