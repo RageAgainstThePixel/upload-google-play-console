@@ -16,3 +16,4 @@ jobs:
       - uses: RageAgainstThePixel/retry-failed-jobs@v1
         with:
           markers: unity-license-exhausted,unity-transient-failure
+          ignore-jobs: validate-result
