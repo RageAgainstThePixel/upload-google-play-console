@@ -1,3 +1,5 @@
+import { describe, it } from 'node:test';
+
 describe('metadata schema (lightweight checks)', () => {
     it('accepts a minimal valid metadata object', () => {
         const valid = {
@@ -5,11 +7,11 @@ describe('metadata schema (lightweight checks)', () => {
                 language: 'en-US',
                 title: 'App',
                 fullDescription: 'Full',
-                shortDescription: 'Short',
-                images: [
-                    { language: 'en-US', type: 'icon', path: 'assets/icon.png' }
-                ]
-            }
+                shortDescription: 'Short'
+            },
+            images: [
+                { language: 'en-US', type: 'icon', path: 'assets/icon.png' }
+            ]
         };
 
         // Basic assertions that mirror required schema pieces
@@ -19,8 +21,8 @@ describe('metadata schema (lightweight checks)', () => {
         if (!isString(l.title)) throw new Error('listing.title invalid');
         if (!isString(l.fullDescription)) throw new Error('listing.fullDescription invalid');
         if (!isString(l.shortDescription)) throw new Error('listing.shortDescription invalid');
-        if (!Array.isArray(l.images) || l.images.length === 0) throw new Error('listing.images invalid');
-        const img = l.images[0];
+        if (!Array.isArray(valid.images) || valid.images.length === 0) throw new Error('images invalid');
+        const img = valid.images[0];
         if (!isLanguageTag(img.language)) throw new Error('image.language invalid');
         if (!isString(img.type)) throw new Error('image.type invalid');
         if (!isString(img.path)) throw new Error('image.path invalid');
@@ -40,7 +42,6 @@ describe('metadata schema (lightweight checks)', () => {
             if (!l.title) throw new Error('missing title');
             if (!l.fullDescription) throw new Error('missing fullDescription');
             if (!l.shortDescription) throw new Error('missing shortDescription');
-            if (!l.images) throw new Error('missing images');
         } catch (e) {
             failed = true;
         }
@@ -91,8 +92,7 @@ describe('additional schema cases', () => {
             language: 'en-US',
             title: 'App',
             fullDescription: 'Full',
-            shortDescription: 'Short',
-            images: [{ language: 'en-US', type: 'icon', path: 'assets/icon.png' }]
+            shortDescription: 'Short'
         } as any;
 
         const metadata = { listing: [listingItem, listingItem] } as any;
@@ -103,7 +103,6 @@ describe('additional schema cases', () => {
             if (!isNullableString(l.title)) throw new Error('listing.title invalid');
             if (!isNullableString(l.fullDescription)) throw new Error('listing.fullDescription invalid');
             if (!isNullableString(l.shortDescription)) throw new Error('listing.shortDescription invalid');
-            if (!Array.isArray(l.images) || l.images.length === 0) throw new Error('listing.images invalid');
         }
     });
 
@@ -121,20 +120,9 @@ describe('additional schema cases', () => {
         if (!failed) throw new Error('expected empty top-level images to fail');
     });
 
-    it('accepts listing.images set to null (nullable array)', () => {
-        const m = {
-            listing: {
-                language: 'en-US',
-                title: null,
-                fullDescription: null,
-                shortDescription: null,
-                images: null
-            }
-        } as any;
-
-        const l = m.listing;
-        if (!('images' in l)) throw new Error('listing.images must be present (nullable)');
-        if (l.images !== null && !Array.isArray(l.images)) throw new Error('listing.images must be array or null');
+    it('requires image.path to be a string', () => {
+        if (!isString('assets/icon.png')) throw new Error('image.path invalid');
+        if (isString(null)) throw new Error('expected a null image.path to fail');
     });
 
     it('accepts releaseNotes as single object and as array', () => {
@@ -187,14 +175,14 @@ describe('additional schema cases', () => {
     });
 
     it('checks image.type enum and null acceptance', () => {
-        const ok = { listing: { language: 'en-US', title: 'A', fullDescription: 'F', shortDescription: 'S', images: [{ language: 'en-US', type: 'phoneScreenshots', path: 'p' }] } } as any;
-        const img = ok.listing.images[0];
+        const ok = { images: [{ language: 'en-US', type: 'phoneScreenshots', path: 'p' }] } as any;
+        const img = ok.images[0];
         if (!isValidImageType(img.type)) throw new Error('image.type invalid');
 
-        const invalid = { listing: { language: 'en-US', title: 'A', fullDescription: 'F', shortDescription: 'S', images: [{ language: 'en-US', type: 'bad', path: 'p' }] } } as any;
+        const invalid = { images: [{ language: 'en-US', type: 'bad', path: 'p' }] } as any;
         let failed = false;
         try {
-            if (!isValidImageType(invalid.listing.images[0].type)) throw new Error('bad image type');
+            if (!isValidImageType(invalid.images[0].type)) throw new Error('bad image type');
         } catch (e) {
             failed = true;
         }
@@ -207,14 +195,12 @@ describe('additional schema cases', () => {
                 language: null,
                 title: null,
                 fullDescription: null,
-                shortDescription: null,
-                images: null
+                shortDescription: null
             }
         } as any;
         const l = withNull.listing;
         if (!('language' in l)) throw new Error('language must be present');
         if (!('title' in l)) throw new Error('title must be present');
-        if (!('images' in l)) throw new Error('images must be present');
 
         const missing = { listing: { language: 'en-US' } } as any;
         let failed = false;
@@ -222,7 +208,6 @@ describe('additional schema cases', () => {
             if (!('title' in missing.listing)) throw new Error('missing title');
             if (!('fullDescription' in missing.listing)) throw new Error('missing fullDescription');
             if (!('shortDescription' in missing.listing)) throw new Error('missing shortDescription');
-            if (!('images' in missing.listing)) throw new Error('missing images');
         } catch (e) {
             failed = true;
         }
@@ -230,7 +215,7 @@ describe('additional schema cases', () => {
     });
 
     it('rejects additionalProperties at root and within objects', () => {
-        const rootExtra = { listing: { language: 'en-US', title: 'A', fullDescription: 'F', shortDescription: 'S', images: [{ language: 'en-US', type: 'icon', path: 'p' }] }, extra: 'no' } as any;
+        const rootExtra = { listing: { language: 'en-US', title: 'A', fullDescription: 'F', shortDescription: 'S' }, extra: 'no' } as any;
         let failed = false;
         try {
             if ('extra' in rootExtra) throw new Error('root has additional property');
@@ -239,7 +224,7 @@ describe('additional schema cases', () => {
         }
         if (!failed) throw new Error('expected extra root property to fail (schema forbids additionalProperties)');
 
-        const listingExtra = { listing: { language: 'en-US', title: 'A', fullDescription: 'F', shortDescription: 'S', images: [], extra: 'no' } } as any;
+        const listingExtra = { listing: { language: 'en-US', title: 'A', fullDescription: 'F', shortDescription: 'S', extra: 'no' } } as any;
         failed = false;
         try {
             if ('extra' in listingExtra.listing) throw new Error('listing has additional property');
