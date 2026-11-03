@@ -1,3 +1,5 @@
+import { describe, it } from 'node:test';
+
 describe('metadata schema (lightweight checks)', () => {
     it('accepts a minimal valid metadata object', () => {
         const valid = {

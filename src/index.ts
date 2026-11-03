@@ -2,7 +2,7 @@ import * as google from '@googleapis/androidpublisher';
 import * as tc from '@actions/tool-cache';
 import * as github from '@actions/github';
 import * as core from '@actions/core';
-import * as glob from '@actions/glob';
+import * as glob from './glob';
 import { exec } from '@actions/exec';
 import * as io from '@actions/io';
 import * as path from 'path';
