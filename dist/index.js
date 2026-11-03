@@ -61682,7 +61682,7 @@ function setCommandEcho(enabled) {
  */
 function setFailed(message) {
     process.exitCode = ExitCode.Failure;
-    core_error(message);
+    error(message);
 }
 //-----------------------------------------------------------------------
 // Logging Commands
@@ -61705,7 +61705,7 @@ function core_debug(message) {
  * @param message error issue message. Errors will be converted to string via toString()
  * @param properties optional properties to add to the annotation.
  */
-function core_error(message, properties = {}) {
+function error(message, properties = {}) {
     command_issueCommand('error', utils_toCommandProperties(properties), message instanceof Error ? message.toString() : message);
 }
 /**
@@ -67698,7 +67698,41 @@ class PackageInfo {
     }
 }
 
+;// CONCATENATED MODULE: ./src/utilities.ts
+
+function parseUserFraction(input) {
+    const userFraction = Number(input);
+    if (!Number.isFinite(userFraction) || userFraction <= 0 || userFraction >= 1) {
+        throw new Error(`Invalid user-fraction value: ${input}. It must be a number greater than 0 and less than 1.`);
+    }
+    return userFraction;
+}
+function parseInAppUpdatePriority(input) {
+    if (!/^[0-5]$/.test(input)) {
+        throw new Error(`Invalid inAppUpdatePriority value: ${input}. It must be an integer between 0 and 5.`);
+    }
+    return Number(input);
+}
+function getExpansionFileType(filePath) {
+    const fileName = external_path_.basename(filePath).toLowerCase();
+    if (fileName.startsWith('main.')) {
+        return 'main';
+    }
+    if (fileName.startsWith('patch.')) {
+        return 'patch';
+    }
+    return null;
+}
+function parseApkPackageName(output) {
+    const match = output.match(/package:\s*name=["']([^"']+)["']/);
+    return match ? match[1] : null;
+}
+function getLatestVersion(versions) {
+    return [...versions].sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))[0];
+}
+
 ;// CONCATENATED MODULE: ./src/index.ts
+
 
 
 
@@ -67746,11 +67780,8 @@ const main = async () => {
         info(`Release status: ${releaseStatus}`);
         let userFraction = undefined;
         if (userFractionInput) {
-            userFraction = parseFloat(userFractionInput);
+            userFraction = parseUserFraction(userFractionInput);
             info(`User fraction: ${userFraction}`);
-            if (isNaN(userFraction) || userFraction < 0 || userFraction > 1) {
-                throw new Error(`Invalid user-fraction value: ${userFractionInput}. It must be a number between 0 and 1.`);
-            }
             if (releaseStatus !== 'inProgress' && releaseStatus !== 'halted') {
                 warning(`user-fraction is only applicable for releases with status 'inProgress' or 'halted'. Current status is '${releaseStatus}'. Ignoring user-fraction.`);
                 userFraction = undefined;
@@ -67758,11 +67789,8 @@ const main = async () => {
         }
         let inAppUpdatePriority = undefined;
         if (inAppUpdatePriorityInput) {
-            inAppUpdatePriority = parseInt(inAppUpdatePriorityInput, 10);
+            inAppUpdatePriority = parseInAppUpdatePriority(inAppUpdatePriorityInput);
             info(`In-app update priority: ${inAppUpdatePriority}`);
-            if (isNaN(inAppUpdatePriority) || inAppUpdatePriority < 0 || inAppUpdatePriority > 5) {
-                throw new Error(`Invalid inAppUpdatePriority value: ${inAppUpdatePriorityInput}. It must be an integer between 0 and 5.`);
-            }
         }
         let metadata = null;
         if (metadataInput) {
@@ -67851,16 +67879,11 @@ const main = async () => {
             info(`Successfully uploaded APK with version code: ${uploadApkResponse.data.versionCode}`);
             versionCode = uploadApkResponse.data.versionCode;
             for (const obbPath of expansionFiles) {
+                const expansionFileType = getExpansionFileType(obbPath);
+                if (!expansionFileType) {
+                    throw new Error(`OBB expansion file is neither prefixed with main nor patch: ${obbPath}`);
+                }
                 try {
-                    const expansionFileType = obbPath.toLowerCase().includes('main')
-                        ? 'main'
-                        : obbPath.toLowerCase().includes('patch')
-                            ? 'patch'
-                            : null;
-                    if (!expansionFileType) {
-                        core_error(`Skipping OBB expansion file as it is neither prefixed with main nor patch: ${obbPath}`);
-                        continue;
-                    }
                     info(`Uploading expansion file: [${expansionFileType}] ${obbPath}...`);
                     const expansionFileResponse = await androidPublisherClient.edits.expansionfiles.upload({
                         auth: auth,
@@ -67878,7 +67901,7 @@ const main = async () => {
                     info(`Successfully uploaded expansion file: [${expansionFileType}] ${obbPath}`);
                 }
                 catch (error) {
-                    core_error(`Error uploading expansion file ${obbPath}: ${error}`);
+                    throw new Error(`Error uploading expansion file ${obbPath}: ${error}`);
                 }
             }
         }
@@ -67921,7 +67944,7 @@ const main = async () => {
                 info(`Successfully uploaded deobfuscation file: ${symbolPath}`);
             }
             catch (error) {
-                core_error(`Error uploading deobfuscation file ${symbolPath}: ${error}`);
+                throw new Error(`Error uploading deobfuscation file ${symbolPath}: ${error}`);
             }
         }
         const tracksResponse = await androidPublisherClient.edits.tracks.list({
@@ -67989,7 +68012,7 @@ const main = async () => {
                     info(`Successfully updated listing for language: ${listing.language}`);
                 }
                 catch (error) {
-                    core_error(`Error updating listing for language ${listing.language}: ${error}`);
+                    throw new Error(`Error updating listing for language ${listing.language}: ${error}`);
                 }
             }
         }
@@ -68014,7 +68037,7 @@ const main = async () => {
                     info(`Successfully uploaded image for language: ${image.language}, type: ${image.type}`);
                 }
                 catch (error) {
-                    core_error(`Error uploading image for language ${image.language}, type ${image.type}: ${error}`);
+                    throw new Error(`Error uploading image for language ${image.language}, type ${image.type}: ${error}`);
                 }
             }
         }
@@ -68085,11 +68108,11 @@ async function getPackageInfoApk(filePath) {
         if (result !== 0) {
             throw new Error(`${aaptPath} exited with code ${result}\n${output}`);
         }
-        const pkgMatch = output.match(/package=["']([^"']+)["']/);
+        const packageName = parseApkPackageName(output);
         const versionCodeMatch = output.match(/(?:android:)?versionCode=["']([^"']+)["']/);
         const versionNameMatch = output.match(/(?:android:)?versionName=["']([^"']+)["']/);
-        if (pkgMatch && versionCodeMatch && versionNameMatch) {
-            return new PackageInfo(pkgMatch[1], versionNameMatch[1], versionCodeMatch[1], filePath);
+        if (packageName && versionCodeMatch && versionNameMatch) {
+            return new PackageInfo(packageName, versionNameMatch[1], versionCodeMatch[1], filePath);
         }
     }
     catch (error) {
@@ -68113,8 +68136,7 @@ async function getAaptPath() {
     if (versions.length === 0) {
         throw new Error(`No build-tools versions found in directory: ${buildToolsDir}`);
     }
-    versions.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
-    const latestVersion = versions[0];
+    const latestVersion = getLatestVersion(versions);
     const latestDir = external_path_.join(buildToolsDir, latestVersion);
     const binaryNames = process.platform === 'win32'
         ? ['aapt2.exe', 'aapt.exe']
@@ -68195,7 +68217,7 @@ async function setupBundleTool() {
     const cachedTools = findAllVersions('bundletool', process.arch);
     if (cachedTools && cachedTools.length > 0) {
         core_debug(`Found ${cachedTools.length} cached versions of bundletool for architecture: ${process.arch}`);
-        const latestVersion = cachedTools.sort().reverse()[0];
+        const latestVersion = getLatestVersion(cachedTools);
         core_debug(`Using latest cached version: ${latestVersion}`);
         const toolPath = find('bundletool', latestVersion, process.arch);
         core_debug(`Found cached bundletool v${latestVersion}-${process.arch} at ${toolPath}`);

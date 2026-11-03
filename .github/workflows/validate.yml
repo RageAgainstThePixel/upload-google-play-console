@@ -92,14 +92,15 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      # pull requests only build: unmerged code must not get the Google credentials or commit a release
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        if: vars.PLAY_UPLOAD_ENABLED == 'true'
+        if: vars.PLAY_UPLOAD_ENABLED == 'true' && github.ref == 'refs/heads/main'
         id: auth
         with:
           service_account: unity-build-tests@unity-build-tests.iam.gserviceaccount.com
           workload_identity_provider: projects/1076244883472/locations/global/workloadIdentityPools/github/providers/upload-google-play-console
       - name: Upload Build Artifact
-        if: vars.PLAY_UPLOAD_ENABLED == 'true'
+        if: vars.PLAY_UPLOAD_ENABLED == 'true' && github.ref == 'refs/heads/main'
         uses: ./ # RageAgainstThePixel/upload-google-play-console
         with:
           release-directory: ${{ steps.unity-setup.outputs.unity-project-path }}/Builds/Android

@@ -175,7 +175,7 @@ The `metadata` input can be either a JSON string or a path to a JSON file that f
 At a high level the schema supports the following payloads:
 
 - `listing`: one or more localized store listings. Each listing describes the metadata fields that mirror the [Android Publisher Listing resource](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.listings)
-  including `language`, `title`, `shortDescription`, `fullDescription`, optional `video`, and an `images` array.
+  including `language`, `title`, `shortDescription`, `fullDescription`, and optional `video`.
 - `releaseNotes`: localized release notes following the [LocalizedText](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.tracks#localizedtext) structure.
 - `countryTargeting`: optional country targeting options with `countries` (ISO 3166-1 alpha-2 codes) and `includeRestOfWorld` flags.
 - `images`: one or more images to upload that follow the [Android Publisher Image resource](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.images) structure including `language`, `type`, and `path` to a local asset.
@@ -197,7 +197,7 @@ Example snippet that shows how the metadata payload might be composed:
     "language": "en-US",
     "title": "Space Explorer",
     "shortDescription": "Blast through the cosmos.",
-    "fullDescription": "Space Explorer is a fast-paced shooter...",
+    "fullDescription": "Space Explorer is a fast-paced shooter..."
   },
   "releaseNotes": [
     {
