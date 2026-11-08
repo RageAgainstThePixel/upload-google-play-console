@@ -10,40 +10,60 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{(github.event_name == 'pull_request' || github.event.action == 'synchronize')}}
 jobs:
+  changes:
+    permissions:
+      contents: read
+      pull-requests: read
+    # docs-only pull requests skip validation; validate-result still reports for them
+    uses: RageAgainstThePixel/workflows/.github/workflows/detect-changes.yml@main
   build-and-publish:
-    if: github.event.pull_request.draft == false
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' && github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
+    # a hung editor install, licensing call or Gradle build must not hold the runner
+    timeout-minutes: 120
     permissions:
       contents: read
       id-token: write
+    defaults:
+      run:
+        shell: bash
     steps:
+      # runs alongside checkout; the wait before the editor install joins it
       - name: Free Disk Space
-        uses: endersonmenezes/free-disk-space@713d134e243b926eba4a5cce0cf608bfd1efb89a # v2.1.1
+        id: free-disk-space
+        background: true
+        uses: endersonmenezes/free-disk-space@8b8cd4e2277836962939a8f3b4ea0ee4bc006156 # v4.0.1
         with:
           remove_android: true
           remove_dotnet: false
           remove_tool_cache: false
-      - uses: actions/checkout@v5
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           repository: RageAgainstThePixel/com.utilities.websockets
-          ref: dev/test-android-publishing
+          ref: main
           path: ${{ github.workspace }}/unity-project/
-      - uses: RageAgainstThePixel/unity-setup@v2
+      - name: Wait for Free Disk Space
+        wait: free-disk-space
+      - uses: RageAgainstThePixel/unity-setup@v3
         id: unity-setup
-        timeout-minutes: 30
+        timeout-minutes: 60
         with:
-          hub-version: 3.12.0
-          unity-version: 6000
+          # pinned: the 6000.0.85f1 Gradle template points at a Unity-internal repository
+          unity-version: 6000.0.84f1
           build-targets: Android
           version-file: ${{ github.workspace }}/unity-project/Utilities.Websockets/ProjectSettings/ProjectVersion.txt
-      - uses: RageAgainstThePixel/activate-unity-license@v2
+          # a pinned patch can pick up a Unity Security Alert after it ships
+          allow-security-alert: true
+      # the post step skips the return on GitHub-hosted Linux runners, which share one machine identity
+      - uses: RageAgainstThePixel/activate-unity-license@v3
         with:
           license: Personal
           username: ${{ secrets.UNITY_USERNAME }}
           password: ${{ secrets.UNITY_PASSWORD }}
       - name: Unity Library Cache Restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         id: unity-library-cache-restore
         with:
           path: ${{ steps.unity-setup.outputs.unity-project-path }}/Library
@@ -51,34 +71,57 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-unity-library-cache
       - name: Validate
-        uses: RageAgainstThePixel/unity-action@v3
+        uses: RageAgainstThePixel/unity-action@v4
         with:
           log-name: Validate
           build-target: Android
           args: -quit -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.ValidateProject -importTMProEssentialsAsset
       - name: Build
-        uses: RageAgainstThePixel/unity-action@v3
+        uses: RageAgainstThePixel/unity-action@v4
         timeout-minutes: 30
         with:
           log-name: Build
           build-target: Android
-          args: -quit -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -appBundle -symbols debugging -versionCode ${{ github.run_number }}${{ github.run_attempt }} -keyaliasPass ${{ secrets.APK_SIGNING_PASSWORD }} -keystorePass ${{ secrets.APK_SIGNING_PASSWORD }}
+          args: -quit -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild -appBundle -symbols debugging -versionCode ${{ github.run_number }}${{ github.run_attempt }} ${{ vars.PLAY_UPLOAD_ENABLED == 'true' && format('-keyaliasPass {0} -keystorePass {0}', secrets.APK_SIGNING_PASSWORD) || '' }}
       - name: Unity Library Cache Save
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ steps.unity-setup.outputs.unity-project-path }}/Library
           key: ${{ runner.os }}-unity-library-cache
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
-      - uses: google-github-actions/auth@v3
+      # pull requests only build: unmerged code must not get the Google credentials or commit a release
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        if: vars.PLAY_UPLOAD_ENABLED == 'true' && github.ref == 'refs/heads/main'
         id: auth
         with:
           service_account: unity-build-tests@unity-build-tests.iam.gserviceaccount.com
           workload_identity_provider: projects/1076244883472/locations/global/workloadIdentityPools/github/providers/upload-google-play-console
       - name: Upload Build Artifact
+        if: vars.PLAY_UPLOAD_ENABLED == 'true' && github.ref == 'refs/heads/main'
         uses: ./ # RageAgainstThePixel/upload-google-play-console
         with:
           release-directory: ${{ steps.unity-setup.outputs.unity-project-path }}/Builds/Android
           status: completed
+  # the one required check: passes when every job passed, or was skipped for a draft or a docs-only change
+  validate-result:
+    needs: [changes, build-and-publish]
+    if: always()
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check results
+        shell: bash
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: ${RESULTS}"
+          for result in ${RESULTS}; do
+            case "${result}" in
+              success|skipped) ;;
+              *) exit 1 ;;
+            esac
+          done

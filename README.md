@@ -19,7 +19,7 @@ Specifically designed for [Unity Game Engine](https://unity.com) builds, but can
 >
 > You can use the [actions/setup-java](https://github.com/actions/setup-java) action to set up Java.
 
-### workflow
+### Workflow
 
 ```yaml
 jobs:
@@ -34,11 +34,11 @@ jobs:
         with:
           service_account: my-service-account@my-project.iam.gserviceaccount.com
           workload_identity_provider: projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
-      - uses: RageAgainstThePixel/upload-google-play-console@v1
+      - uses: RageAgainstThePixel/upload-google-play-console@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }} # Required
           service-account-credentials: ${{ steps.google-auth.outputs.credentials_file_path }} # Required if GOOGLE_APPLICATION_CREDENTIALS is not set in the environment
@@ -58,20 +58,24 @@ jobs:
           changes-not-sent-for-review: 'false' # Optional, don't send the changes for review automatically
 ```
 
-### inputs
+### Inputs
 
-| name | description | required |
-| ---- | ----------- | -------- |
-| `github-token` | GitHub token for authentication. Use either `secrets.GITHUB_TOKEN`, `github.token` or a personal access token. | true |
-| `service-account-credentials` | The service account credentials file path. | Required if GOOGLE_APPLICATION_CREDENTIALS is not set in the environment. |
-| `release-directory` | The directory containing the APKs/AABs to upload. | true |
-| `release-name` | The name of the release. | Defaults to reading manifest data (version code and version string). |
-| `track` | The track to upload the app to (e.g., `internal`, `alpha`, `beta`, `production`). | Defaults to `internal`. |
-| `status` | The status of the release. Must be one of `draft`, `inProgress`, `completed`, or `halted`. | Defaults to `completed`. |
-| `user-fraction` | Fraction of users who are eligible for a staged release. 0 < fraction < 1. Can only be set when status is `inProgress` or `halted`. | false |
-| `in-app-update-priority` | In-app update priority of the release. All newly added APKs in the release will be considered at this priority. Can take values in the range [0, 5], with 5 the highest priority. Defaults to 0. `in-app-update-priority` can not be updated once the release is rolled out. See <https://developer.android.com/guide/playcore/in-app-updates>. | false |
-| `metadata` | Json string or path to a JSON file that contains additional localized store listing metadata. [see Spec](#metadata-json-structure) | Defaults to `0`. |
-| `changes-not-sent-for-review` | When a rejection happens, the parameter will make sure that the changes in this edit won't be reviewed until they are explicitly sent for review from within the Google Play Console UI. These changes will be added to any other changes that are not yet sent for review. | Defaults to `false` |
+| Input | Description | Required | Default |
+|-------|-------------|----------|---------|
+| `github-token` | GitHub token for authentication. Use either `secrets.GITHUB_TOKEN`, `github.token` or a personal access token. | true | `${{ github.token }}` |
+| `service-account-credentials` | The service account credentials file path. | If `GOOGLE_APPLICATION_CREDENTIALS` is not set in the environment. | |
+| `release-directory` | The directory containing the APKs/AABs to upload. | true | |
+| `release-name` | The name of the release. | false | Read from the manifest data (version code and version string) |
+| `track` | The track to upload the app to (e.g., `internal`, `alpha`, `beta`, `production`). | false | `internal` |
+| `status` | The status of the release. Must be one of `draft`, `inProgress`, `completed`, or `halted`. | false | `completed` |
+| `user-fraction` | Fraction of users who are eligible for a staged release. 0 < fraction < 1. Can only be set when status is `inProgress` or `halted`. | false | |
+| `in-app-update-priority` | In-app update priority of the release. All newly added APKs in the release will be considered at this priority. Can take values in the range [0, 5], with 5 the highest priority. `in-app-update-priority` can not be updated once the release is rolled out. See <https://developer.android.com/guide/playcore/in-app-updates>. | false | `0` |
+| `metadata` | Json string or path to a JSON file that contains additional localized store listing metadata. [see Spec](#metadata-json-structure) | false | |
+| `changes-not-sent-for-review` | When a rejection happens, the parameter will make sure that the changes in this edit won't be reviewed until they are explicitly sent for review from within the Google Play Console UI. These changes will be added to any other changes that are not yet sent for review. | false | `false` |
+
+The action has no outputs.
+
+The action runs on Node 24, so self-hosted runners need [actions/runner](https://github.com/actions/runner) v2.327.1 or newer.
 
 ### Setup Google Cloud Authentication via Workload Identity Federation with a Service Account
 
@@ -171,7 +175,7 @@ The `metadata` input can be either a JSON string or a path to a JSON file that f
 At a high level the schema supports the following payloads:
 
 - `listing`: one or more localized store listings. Each listing describes the metadata fields that mirror the [Android Publisher Listing resource](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.listings)
-  including `language`, `title`, `shortDescription`, `fullDescription`, optional `video`, and an `images` array.
+  including `language`, `title`, `shortDescription`, `fullDescription`, and optional `video`.
 - `releaseNotes`: localized release notes following the [LocalizedText](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.tracks#localizedtext) structure.
 - `countryTargeting`: optional country targeting options with `countries` (ISO 3166-1 alpha-2 codes) and `includeRestOfWorld` flags.
 - `images`: one or more images to upload that follow the [Android Publisher Image resource](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.images) structure including `language`, `type`, and `path` to a local asset.
@@ -193,7 +197,7 @@ Example snippet that shows how the metadata payload might be composed:
     "language": "en-US",
     "title": "Space Explorer",
     "shortDescription": "Blast through the cosmos.",
-    "fullDescription": "Space Explorer is a fast-paced shooter...",
+    "fullDescription": "Space Explorer is a fast-paced shooter..."
   },
   "releaseNotes": [
     {

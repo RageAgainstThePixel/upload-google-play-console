@@ -2,7 +2,7 @@ import * as google from '@googleapis/androidpublisher';
 import * as tc from '@actions/tool-cache';
 import * as github from '@actions/github';
 import * as core from '@actions/core';
-import * as glob from '@actions/glob';
+import * as glob from './glob';
 import { exec } from '@actions/exec';
 import * as io from '@actions/io';
 import * as path from 'path';
@@ -11,6 +11,13 @@ import * as os from 'os';
 
 import { PackageInfo } from './package-info';
 import { Metadata } from './metadata';
+import {
+    getExpansionFileType,
+    getLatestVersion,
+    parseApkPackageName,
+    parseInAppUpdatePriority,
+    parseUserFraction
+} from './utilities';
 
 import TrackInfo = google.androidpublisher_v3.Schema$TrackRelease;
 
@@ -58,12 +65,8 @@ const main = async () => {
         let userFraction: number | undefined = undefined;
 
         if (userFractionInput) {
-            userFraction = parseFloat(userFractionInput);
+            userFraction = parseUserFraction(userFractionInput);
             core.info(`User fraction: ${userFraction}`);
-
-            if (isNaN(userFraction) || userFraction < 0 || userFraction > 1) {
-                throw new Error(`Invalid user-fraction value: ${userFractionInput}. It must be a number between 0 and 1.`);
-            }
 
             if (releaseStatus !== 'inProgress' && releaseStatus !== 'halted') {
                 core.warning(`user-fraction is only applicable for releases with status 'inProgress' or 'halted'. Current status is '${releaseStatus}'. Ignoring user-fraction.`);
@@ -74,12 +77,8 @@ const main = async () => {
         let inAppUpdatePriority: number | undefined = undefined;
 
         if (inAppUpdatePriorityInput) {
-            inAppUpdatePriority = parseInt(inAppUpdatePriorityInput, 10);
+            inAppUpdatePriority = parseInAppUpdatePriority(inAppUpdatePriorityInput);
             core.info(`In-app update priority: ${inAppUpdatePriority}`);
-
-            if (isNaN(inAppUpdatePriority) || inAppUpdatePriority < 0 || inAppUpdatePriority > 5) {
-                throw new Error(`Invalid inAppUpdatePriority value: ${inAppUpdatePriorityInput}. It must be an integer between 0 and 5.`);
-            }
         }
 
         let metadata: Metadata | null = null;
@@ -179,18 +178,13 @@ const main = async () => {
             versionCode = uploadApkResponse.data.versionCode;
 
             for (const obbPath of expansionFiles) {
+                const expansionFileType = getExpansionFileType(obbPath);
+
+                if (!expansionFileType) {
+                    throw new Error(`OBB expansion file is neither prefixed with main nor patch: ${obbPath}`);
+                }
+
                 try {
-                    const expansionFileType: 'main' | 'patch' | null = obbPath.toLowerCase().includes('main')
-                        ? 'main'
-                        : obbPath.toLowerCase().includes('patch')
-                            ? 'patch'
-                            : null;
-
-                    if (!expansionFileType) {
-                        core.error(`Skipping OBB expansion file as it is neither prefixed with main nor patch: ${obbPath}`);
-                        continue;
-                    }
-
                     core.info(`Uploading expansion file: [${expansionFileType}] ${obbPath}...`);
                     const expansionFileResponse = await androidPublisherClient.edits.expansionfiles.upload({
                         auth: auth,
@@ -207,7 +201,7 @@ const main = async () => {
                     if (!expansionFileResponse.ok) throw new Error(expansionFileResponse.statusText);
                     core.info(`Successfully uploaded expansion file: [${expansionFileType}] ${obbPath}`);
                 } catch (error) {
-                    core.error(`Error uploading expansion file ${obbPath}: ${error}`);
+                    throw new Error(`Error uploading expansion file ${obbPath}: ${error}`);
                 }
             }
         }
@@ -250,7 +244,7 @@ const main = async () => {
                 if (!uploadDeobfuscationFileResponse.ok) throw new Error(uploadDeobfuscationFileResponse.statusText);
                 core.info(`Successfully uploaded deobfuscation file: ${symbolPath}`);
             } catch (error) {
-                core.error(`Error uploading deobfuscation file ${symbolPath}: ${error}`);
+                throw new Error(`Error uploading deobfuscation file ${symbolPath}: ${error}`);
             }
         }
 
@@ -324,7 +318,7 @@ const main = async () => {
                     if (!updateListingResponse.ok) throw new Error(updateListingResponse.statusText);
                     core.info(`Successfully updated listing for language: ${listing.language}`);
                 } catch (error) {
-                    core.error(`Error updating listing for language ${listing.language}: ${error}`);
+                    throw new Error(`Error updating listing for language ${listing.language}: ${error}`);
                 }
             }
         }
@@ -349,7 +343,7 @@ const main = async () => {
                     if (!imageUploadResponse.ok) throw new Error(imageUploadResponse.statusText);
                     core.info(`Successfully uploaded image for language: ${image.language}, type: ${image.type}`);
                 } catch (error) {
-                    core.error(`Error uploading image for language ${image.language}, type ${image.type}: ${error}`);
+                    throw new Error(`Error uploading image for language ${image.language}, type ${image.type}: ${error}`);
                 }
             }
         }
@@ -436,13 +430,13 @@ async function getPackageInfoApk(filePath: string): Promise<PackageInfo> {
             throw new Error(`${aaptPath} exited with code ${result}\n${output}`);
         }
 
-        const pkgMatch = output.match(/package=["']([^"']+)["']/);
+        const packageName = parseApkPackageName(output);
         const versionCodeMatch = output.match(/(?:android:)?versionCode=["']([^"']+)["']/);
         const versionNameMatch = output.match(/(?:android:)?versionName=["']([^"']+)["']/);
 
-        if (pkgMatch && versionCodeMatch && versionNameMatch) {
+        if (packageName && versionCodeMatch && versionNameMatch) {
             return new PackageInfo(
-                pkgMatch[1],
+                packageName,
                 versionNameMatch[1],
                 versionCodeMatch[1],
                 filePath
@@ -476,9 +470,7 @@ async function getAaptPath(): Promise<string> {
         throw new Error(`No build-tools versions found in directory: ${buildToolsDir}`);
     }
 
-    // Sort versions in descending order to get the latest version
-    versions.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
-    const latestVersion = versions[0];
+    const latestVersion = getLatestVersion(versions);
     const latestDir = path.join(buildToolsDir, latestVersion);
     const binaryNames = process.platform === 'win32'
         ? ['aapt2.exe', 'aapt.exe']
@@ -583,7 +575,7 @@ async function setupBundleTool(): Promise<string> {
 
     if (cachedTools && cachedTools.length > 0) {
         core.debug(`Found ${cachedTools.length} cached versions of bundletool for architecture: ${process.arch}`);
-        const latestVersion = cachedTools.sort().reverse()[0];
+        const latestVersion = getLatestVersion(cachedTools);
         core.debug(`Using latest cached version: ${latestVersion}`);
         const toolPath = tc.find('bundletool', latestVersion, process.arch);
         core.debug(`Found cached bundletool v${latestVersion}-${process.arch} at ${toolPath}`);

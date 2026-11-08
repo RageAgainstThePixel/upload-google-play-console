@@ -99,24 +99,13 @@
             "null"
           ],
           "format": "uri"
-        },
-        "images": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "minItems": 1,
-          "items": {
-            "$ref": "#/definitions/image"
-          }
         }
       },
       "required": [
         "language",
         "title",
         "fullDescription",
-        "shortDescription",
-        "images"
+        "shortDescription"
       ],
       "additionalProperties": false
     },
@@ -149,10 +138,7 @@
           ]
         },
         "path": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": "string",
           "description": "Relative or absolute path to the local image asset to upload."
         }
       },

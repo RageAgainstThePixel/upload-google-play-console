@@ -1,6 +1,6 @@
 {
   "name": "upload-google-play-console",
-  "version": "1.0.6",
+  "version": "2.0.0",
   "description": "A Github action to upload abb/apk and build metadata artifacts to the Google Play Console",
   "author": "RageAgainstThePixel",
   "license": "MIT",
@@ -15,27 +15,24 @@
   "main": "dist/index.js",
   "keywords": [],
   "dependencies": {
-    "@actions/core": "^1.11.1",
-    "@actions/exec": "^1.1.1",
-    "@actions/github": "^6.0.1",
-    "@actions/glob": "^0.5.0",
-    "@actions/io": "^2.0.0",
-    "@actions/tool-cache": "^2.0.2",
-    "@googleapis/androidpublisher": "^33.2.0"
+    "@actions/core": "^3.0.1",
+    "@actions/exec": "^3.0.0",
+    "@actions/github": "^9.1.1",
+    "@actions/io": "^3.0.2",
+    "@actions/tool-cache": "^4.0.0",
+    "@googleapis/androidpublisher": "^42.3.0",
+    "glob": "^14.0.4"
   },
   "devDependencies": {
-    "@types/jest": "^30.0.0",
-    "@types/node": "^22.19.3",
-    "@vercel/ncc": "^0.34.0",
-    "jest": "^30.2.0",
-    "shx": "^0.3.4",
-    "ts-jest": "^29.4.6",
-    "typescript": "^5.9.3"
+    "@types/node": "^24.19.2",
+    "@vercel/ncc": "^0.45.0",
+    "shx": "^0.4.0",
+    "typescript": "^6.0.3"
   },
   "scripts": {
-    "tests": "jest --roots tests",
     "build": "npm run clean && npm run bundle",
     "bundle": "ncc build src/index.ts -o dist --source-map --license licenses.txt",
-    "clean": "npm install && shx rm -rf dist/ out/ node_modules/ && npm ci"
+    "clean": "npm install && shx rm -rf dist/ out/ node_modules/ && npm ci",
+    "test": "node --test \"tests/**/*.test.mts\""
   }
 }
